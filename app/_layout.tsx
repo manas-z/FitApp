@@ -1,59 +1,50 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+// app/_layout.tsx
+import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import { Slot, Redirect, useSegments } from 'expo-router';
+import { initializeFirebase } from '../src/firebase';
+import { FirebaseProvider, useUser } from '../src/firebase';
 
-import { useColorScheme } from '@/components/useColorScheme';
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, isUserLoading } = useUser();
+  const segments = useSegments();
+  const inAuthGroup = segments[0] === '(auth)';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
-  });
-
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
+  if (isUserLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ActivityIndicator />
+      </View>
+    );
   }
 
-  return <RootLayoutNav />;
+  // Not logged in and not already in (auth) routes → send to login
+  if (!user && !inAuthGroup) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  // Logged in but currently inside (auth) → send to tabs
+  if (user && inAuthGroup) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <>{children}</>;
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
+  const { firebaseApp, auth, firestore } = initializeFirebase();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <FirebaseProvider firebaseApp={firebaseApp} auth={auth} firestore={firestore}>
+      <AuthGate>
+        <Slot />
+      </AuthGate>
+    </FirebaseProvider>
   );
 }

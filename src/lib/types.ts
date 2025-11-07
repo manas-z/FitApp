@@ -2,16 +2,24 @@
 
 export type MediaType = 'image' | 'video' | 'audio';
 
+export interface ScheduleStepMedia {
+  type: MediaType;
+  url: string;
+  hint?: string;
+}
+
 export interface ScheduleStep {
   id: string;
   name: string;
   duration: number; // seconds
-  media?: {
-    type: MediaType;
-    url: string;
-    hint?: string;
-  };
+  restDuration?: number; // seconds between this and the next step
+  media?: ScheduleStepMedia;
   instruction?: string;
+}
+
+export interface ScheduleMusic {
+  url: string;
+  title?: string;
 }
 
 export interface Schedule {
@@ -21,6 +29,7 @@ export interface Schedule {
   description?: string;
   steps: ScheduleStep[];
   totalDuration: number; // seconds
+  music?: ScheduleMusic | null;
   createdAt: number; // Date.now() ms
   updatedAt: number; // Date.now() ms
 }

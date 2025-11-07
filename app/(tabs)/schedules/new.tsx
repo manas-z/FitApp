@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import {
@@ -18,30 +19,50 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { useFirebase, useUser } from '../../../src/firebase';
-import type { ScheduleStep } from '../../../src/lib/types';
+import type {
+  ScheduleStep,
+  ScheduleStepMedia,
+  ScheduleMusic,
+} from '../../../src/lib/types';
+import { uploadToCloudinary } from '../../../src/lib/cloudinary';
+
+function makeStepId() {
+  return Math.random().toString(36).slice(2);
+}
+
+function inferMediaType(mimeType?: string | null): ScheduleStepMedia['type'] {
+  if (!mimeType) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  return mimeType.startsWith('image/') ? 'image' : 'image';
+}
 
 type StepForm = {
   id: string;
   name: string;
   duration: string;
+  restDuration: string;
+  media?: ScheduleStepMedia;
 };
 
 type FormValues = {
   title: string;
   description?: string;
   steps: StepForm[];
+  music?: ScheduleMusic;
 };
-
-function makeStepId() {
-  return Math.random().toString(36).slice(2);
-}
 
 export default function NewScheduleScreen() {
   const router = useRouter();
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const { control, handleSubmit } = useForm<FormValues>({
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+  } = useForm<FormValues>({
     defaultValues: {
       title: '',
       description: '',
@@ -50,6 +71,7 @@ export default function NewScheduleScreen() {
           id: makeStepId(),
           name: 'New step',
           duration: '30',
+          restDuration: '15',
         },
       ],
     },
@@ -60,6 +82,87 @@ export default function NewScheduleScreen() {
     name: 'steps',
   });
 
+  const [uploadingStepIndex, setUploadingStepIndex] = React.useState<number | null>(
+    null,
+  );
+  const [uploadingMusic, setUploadingMusic] = React.useState(false);
+
+  const music = watch('music');
+
+  const handlePickStepMedia = async (index: number) => {
+    try {
+      setUploadingStepIndex(index);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'video/*', 'audio/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      const mediaType = inferMediaType(asset.mimeType);
+      const uploadResult = await uploadToCloudinary(
+        {
+          uri: asset.uri,
+          mimeType: asset.mimeType,
+          name: asset.name,
+        },
+        mediaType === 'image' ? 'image' : 'auto',
+      );
+
+      setValue(`steps.${index}.media`, {
+        type: mediaType,
+        url: uploadResult.secureUrl,
+        hint: asset.name ?? uploadResult.originalFilename ?? undefined,
+      });
+    } catch (err) {
+      console.error('Error uploading step media', err);
+      Alert.alert(
+        'Upload failed',
+        'We could not upload that file to Cloudinary. Please try again.',
+      );
+    } finally {
+      setUploadingStepIndex(null);
+    }
+  };
+
+  const handlePickMusic = async () => {
+    try {
+      setUploadingMusic(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['audio/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      const uploadResult = await uploadToCloudinary(
+        {
+          uri: asset.uri,
+          mimeType: asset.mimeType,
+          name: asset.name,
+        },
+        'auto',
+      );
+
+      setValue('music', {
+        url: uploadResult.secureUrl,
+        title: asset.name ?? uploadResult.originalFilename ?? undefined,
+      });
+    } catch (err) {
+      console.error('Error uploading music', err);
+      Alert.alert(
+        'Upload failed',
+        'Unable to upload music to Cloudinary. Please try again.',
+      );
+    } finally {
+      setUploadingMusic(false);
+    }
+  };
+
   const onSubmit = async (values: FormValues) => {
     if (!user) {
       Alert.alert('Error', 'You must be logged in to save a schedule.');
@@ -67,30 +170,37 @@ export default function NewScheduleScreen() {
     }
 
     try {
-      const steps: ScheduleStep[] = values.steps.map((s) => ({
-        id: s.id,
-        name: s.name.trim() || 'Step',
-        duration: Number(s.duration) || 0,
-      }));
+      const steps: ScheduleStep[] = values.steps.map((s) => {
+        const duration = Number(s.duration) || 0;
+        const restDuration = Number(s.restDuration) || 0;
+        const step: ScheduleStep = {
+          id: s.id,
+          name: s.name.trim() || 'Step',
+          duration,
+          restDuration,
+        };
+        if (s.media?.url) {
+          step.media = s.media;
+        }
+        return step;
+      });
 
       const totalDuration = steps.reduce(
-        (sum, step) => sum + (step.duration || 0),
+        (sum, step) => sum + (step.duration || 0) + (step.restDuration || 0),
         0,
       );
 
-      // MATCHES WEB APP:
-      // users/{uid}/schedules/{scheduleId}
       const schedulesCol = collection(
         firestore,
         'users',
         user.uid,
         'schedules',
       );
-      const scheduleDoc = doc(schedulesCol); // auto id
+      const scheduleDoc = doc(schedulesCol);
 
       const now = Date.now();
 
-      await setDoc(scheduleDoc, {
+      const payload: any = {
         id: scheduleDoc.id,
         userId: user.uid,
         title: values.title.trim() || 'Untitled schedule',
@@ -101,7 +211,13 @@ export default function NewScheduleScreen() {
         updatedAt: now,
         createdAtServer: serverTimestamp(),
         updatedAtServer: serverTimestamp(),
-      });
+      };
+
+      if (values.music?.url) {
+        payload.music = values.music;
+      }
+
+      await setDoc(scheduleDoc, payload);
 
       Alert.alert(
         'Schedule Saved',
@@ -158,49 +274,93 @@ export default function NewScheduleScreen() {
 
       <Text style={styles.label}>Steps</Text>
 
-      {fields.map((field, index) => (
-        <View key={field.id} style={styles.stepCard}>
-          <Text style={styles.stepTitle}>Step {index + 1}</Text>
+      {fields.map((field, index) => {
+        const stepMedia = watch(`steps.${index}.media`);
+        return (
+          <View key={field.id} style={styles.stepCard}>
+            <Text style={styles.stepTitle}>Step {index + 1}</Text>
 
-          <Controller
-            control={control}
-            name={`steps.${index}.name`}
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={styles.input}
-                placeholder="Step name"
-                placeholderTextColor="#9ca3af"
-                onChangeText={onChange}
-                value={value}
-              />
+            <Controller
+              control={control}
+              name={`steps.${index}.name`}
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Step name"
+                  placeholderTextColor="#9ca3af"
+                  onChangeText={onChange}
+                  value={value}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name={`steps.${index}.duration`}
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Duration (seconds)"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="numeric"
+                  onChangeText={onChange}
+                  value={value}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name={`steps.${index}.restDuration`}
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Rest between steps (seconds)"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="numeric"
+                  onChangeText={onChange}
+                  value={value}
+                />
+              )}
+            />
+
+            <View style={styles.mediaSection}>
+              <Pressable
+                style={styles.mediaButton}
+                onPress={() => handlePickStepMedia(index)}
+              >
+                <Text style={styles.mediaButtonText}>
+                  {stepMedia ? 'Change media' : 'Attach media'}
+                </Text>
+              </Pressable>
+              {uploadingStepIndex === index && (
+                <Text style={styles.uploadHint}>Uploading…</Text>
+              )}
+              {stepMedia?.url && (
+                <View style={styles.mediaInfo}>
+                  <Text style={styles.mediaInfoText}>
+                    Attached {stepMedia.type} · {stepMedia.hint ?? 'Uploaded file'}
+                  </Text>
+                  <Pressable
+                    onPress={() => setValue(`steps.${index}.media`, undefined)}
+                  >
+                    <Text style={styles.removeButtonText}>Remove media</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {fields.length > 1 && (
+              <Pressable
+                style={styles.removeButton}
+                onPress={() => remove(index)}
+              >
+                <Text style={styles.removeButtonText}>Remove step</Text>
+              </Pressable>
             )}
-          />
-
-          <Controller
-            control={control}
-            name={`steps.${index}.duration`}
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={styles.input}
-                placeholder="Duration (seconds)"
-                placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-
-          {fields.length > 1 && (
-            <Pressable
-              style={styles.removeButton}
-              onPress={() => remove(index)}
-            >
-              <Text style={styles.removeButtonText}>Remove step</Text>
-            </Pressable>
-          )}
-        </View>
-      ))}
+          </View>
+        );
+      })}
 
       <Pressable
         style={styles.addStepButton}
@@ -209,16 +369,34 @@ export default function NewScheduleScreen() {
             id: makeStepId(),
             name: `Step ${fields.length + 1}`,
             duration: '30',
+            restDuration: '15',
           })
         }
       >
         <Text style={styles.addStepText}>+ Add step</Text>
       </Pressable>
 
-      <Pressable
-        style={styles.saveButton}
-        onPress={handleSubmit(onSubmit)}
-      >
+      <Text style={styles.label}>Background music</Text>
+      <View style={styles.mediaSection}>
+        <Pressable style={styles.mediaButton} onPress={handlePickMusic}>
+          <Text style={styles.mediaButtonText}>
+            {music?.url ? 'Change audio' : 'Attach audio'}
+          </Text>
+        </Pressable>
+        {uploadingMusic && <Text style={styles.uploadHint}>Uploading…</Text>}
+        {music?.url && (
+          <View style={styles.mediaInfo}>
+            <Text style={styles.mediaInfoText}>
+              {music.title ?? 'Uploaded audio file'}
+            </Text>
+            <Pressable onPress={() => setValue('music', undefined)}>
+              <Text style={styles.removeButtonText}>Remove audio</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      <Pressable style={styles.saveButton} onPress={handleSubmit(onSubmit)}>
         <Text style={styles.saveButtonText}>Save schedule</Text>
       </Pressable>
     </ScrollView>
@@ -228,7 +406,7 @@ export default function NewScheduleScreen() {
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 40 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '500', marginTop: 12, marginBottom: 4 },
+  label: { fontSize: 14, fontWeight: '500', marginTop: 16, marginBottom: 8 },
   input: {
     borderWidth: 1,
     borderColor: '#d1d5db',
@@ -243,7 +421,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  stepTitle: { fontWeight: '600', marginBottom: 4 },
+  stepTitle: { fontWeight: '600', marginBottom: 8 },
+  mediaSection: { marginTop: 12, gap: 6 },
+  mediaButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#111827',
+    alignItems: 'center',
+  },
+  mediaButtonText: { fontWeight: '600', color: '#111827' },
+  mediaInfo: { gap: 4 },
+  mediaInfoText: { color: '#374151' },
+  uploadHint: { color: '#6b7280', fontStyle: 'italic' },
   removeButton: { marginTop: 8 },
   removeButtonText: { color: '#b91c1c', fontWeight: '500' },
   addStepButton: {

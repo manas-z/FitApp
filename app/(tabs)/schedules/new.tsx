@@ -8,10 +8,13 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { Video, ResizeMode } from 'expo-av';
+import { Ionicons } from '@expo/vector-icons';
 import {
   collection,
   doc,
@@ -235,223 +238,406 @@ export default function NewScheduleScreen() {
     }
   };
 
+  const renderMediaPreview = (media?: ScheduleStepMedia) => {
+    if (!media) {
+      return (
+        <Text style={styles.mediaPlaceholder}>
+          Upload an image/video or select an audio clip.
+        </Text>
+      );
+    }
+
+    if (media.type === 'image') {
+      return <Image source={{ uri: media.url }} style={styles.imagePreview} />;
+    }
+
+    if (media.type === 'video') {
+      return (
+        <Video
+          source={{ uri: media.url }}
+          style={styles.videoPreview}
+          useNativeControls
+          resizeMode={ResizeMode.COVER}
+          shouldPlay={false}
+        />
+      );
+    }
+
+    return (
+      <View style={styles.audioPreview}>
+        <Ionicons name="musical-notes" size={28} color="#2563eb" />
+        <Text style={styles.audioPreviewText}>{media.hint ?? 'Audio file'}</Text>
+      </View>
+    );
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>New Schedule</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <Text style={styles.pageTitle}>Create New Schedule</Text>
 
-      <Text style={styles.label}>Title</Text>
-      <Controller
-        control={control}
-        name="title"
-        rules={{ required: true }}
-        render={({ field: { onChange, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Morning yoga"
-            placeholderTextColor="#9ca3af"
-            onChangeText={onChange}
-            value={value}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Schedule Details</Text>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Title</Text>
+          <Controller
+            control={control}
+            name="title"
+            rules={{ required: true }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Morning Cardio"
+                placeholderTextColor="#9ca3af"
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
           />
-        )}
-      />
+        </View>
 
-      <Text style={styles.label}>Description</Text>
-      <Controller
-        control={control}
-        name="description"
-        render={({ field: { onChange, value } }) => (
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            placeholder="Short description"
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={3}
-            onChangeText={onChange}
-            value={value}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Description (Optional)</Text>
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                placeholder="Describe your schedule..."
+                placeholderTextColor="#9ca3af"
+                multiline
+                numberOfLines={3}
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
           />
-        )}
-      />
+        </View>
+      </View>
 
-      <Text style={styles.label}>Steps</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Schedule Steps</Text>
 
-      {fields.map((field, index) => {
-        const stepMedia = watch(`steps.${index}.media`);
-        return (
-          <View key={field.id} style={styles.stepCard}>
-            <Text style={styles.stepTitle}>Step {index + 1}</Text>
-
-            <Controller
-              control={control}
-              name={`steps.${index}.name`}
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Step name"
-                  placeholderTextColor="#9ca3af"
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name={`steps.${index}.duration`}
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Duration (seconds)"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name={`steps.${index}.restDuration`}
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Rest between steps (seconds)"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-
-            <View style={styles.mediaSection}>
-              <Pressable
-                style={styles.mediaButton}
-                onPress={() => handlePickStepMedia(index)}
-              >
-                <Text style={styles.mediaButtonText}>
-                  {stepMedia ? 'Change media' : 'Attach media'}
-                </Text>
-              </Pressable>
-              {uploadingStepIndex === index && (
-                <Text style={styles.uploadHint}>Uploading…</Text>
-              )}
-              {stepMedia?.url && (
-                <View style={styles.mediaInfo}>
-                  <Text style={styles.mediaInfoText}>
-                    Attached {stepMedia.type} · {stepMedia.hint ?? 'Uploaded file'}
+        {fields.map((field, index) => {
+          const stepMedia = watch(`steps.${index}.media`);
+          return (
+            <View key={field.id} style={styles.stepWrapper}>
+              <View style={styles.stepHeader}>
+                <Text style={styles.stepHeading}>Media</Text>
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={() => handlePickStepMedia(index)}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={16}
+                    color="#1d4ed8"
+                    style={styles.uploadIcon}
+                  />
+                  <Text style={styles.uploadButtonText}>
+                    {stepMedia ? 'Change File' : 'Upload File'}
                   </Text>
-                  <Pressable
-                    onPress={() => setValue(`steps.${index}.media`, undefined)}
-                  >
-                    <Text style={styles.removeButtonText}>Remove media</Text>
-                  </Pressable>
+                </Pressable>
+              </View>
+
+              <View style={styles.mediaPreviewContainer}>
+                {uploadingStepIndex === index ? (
+                  <Text style={styles.uploadHint}>Uploading…</Text>
+                ) : (
+                  renderMediaPreview(stepMedia)
+                )}
+              </View>
+
+              {stepMedia && (
+                <Pressable
+                  style={styles.clearButton}
+                  onPress={() => setValue(`steps.${index}.media`, undefined)}
+                >
+                  <Ionicons name="trash-outline" size={14} color="#b91c1c" />
+                  <Text style={styles.clearButtonText}>Remove media</Text>
+                </Pressable>
+              )}
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Step Name (Optional)</Text>
+                <Controller
+                  control={control}
+                  name={`steps.${index}.name`}
+                  render={({ field: { onChange, value } }) => (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., Warm-up"
+                      placeholderTextColor="#9ca3af"
+                      onChangeText={onChange}
+                      value={value}
+                    />
+                  )}
+                />
+              </View>
+
+              <View style={styles.inlineFields}>
+                <View style={styles.inlineField}>
+                  <Text style={styles.label}>Duration (seconds)</Text>
+                  <Controller
+                    control={control}
+                    name={`steps.${index}.duration`}
+                    render={({ field: { onChange, value } }) => (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="60"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                        onChangeText={onChange}
+                        value={value}
+                      />
+                    )}
+                  />
                 </View>
+
+                <View style={styles.inlineField}>
+                  <Text style={styles.label}>Rest (seconds)</Text>
+                  <Controller
+                    control={control}
+                    name={`steps.${index}.restDuration`}
+                    render={({ field: { onChange, value } }) => (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="15"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                        onChangeText={onChange}
+                        value={value}
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              {fields.length > 1 && (
+                <Pressable
+                  style={styles.removeStepButton}
+                  onPress={() => remove(index)}
+                >
+                  <Ionicons name="remove-circle-outline" size={16} color="#b91c1c" />
+                  <Text style={styles.removeStepText}>Remove step</Text>
+                </Pressable>
               )}
             </View>
+          );
+        })}
 
-            {fields.length > 1 && (
-              <Pressable
-                style={styles.removeButton}
-                onPress={() => remove(index)}
-              >
-                <Text style={styles.removeButtonText}>Remove step</Text>
-              </Pressable>
-            )}
-          </View>
-        );
-      })}
-
-      <Pressable
-        style={styles.addStepButton}
-        onPress={() =>
-          append({
-            id: makeStepId(),
-            name: `Step ${fields.length + 1}`,
-            duration: '30',
-            restDuration: '15',
-          })
-        }
-      >
-        <Text style={styles.addStepText}>+ Add step</Text>
-      </Pressable>
-
-      <Text style={styles.label}>Background music</Text>
-      <View style={styles.mediaSection}>
-        <Pressable style={styles.mediaButton} onPress={handlePickMusic}>
-          <Text style={styles.mediaButtonText}>
-            {music?.url ? 'Change audio' : 'Attach audio'}
-          </Text>
+        <Pressable
+          style={styles.addStepButton}
+          onPress={() =>
+            append({
+              id: makeStepId(),
+              name: '',
+              duration: '',
+              restDuration: '',
+            })
+          }
+        >
+          <Ionicons name="add-circle-outline" size={18} color="#1d4ed8" />
+          <Text style={styles.addStepText}>Add Step</Text>
         </Pressable>
-        {uploadingMusic && <Text style={styles.uploadHint}>Uploading…</Text>}
-        {music?.url && (
-          <View style={styles.mediaInfo}>
-            <Text style={styles.mediaInfoText}>
-              {music.title ?? 'Uploaded audio file'}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Background Music</Text>
+        <View style={styles.fieldGroup}>
+          <Pressable style={styles.uploadButton} onPress={handlePickMusic}>
+            <Ionicons
+              name="musical-notes-outline"
+              size={16}
+              color="#1d4ed8"
+              style={styles.uploadIcon}
+            />
+            <Text style={styles.uploadButtonText}>
+              {music?.url ? 'Change Audio' : 'Upload Audio'}
             </Text>
-            <Pressable onPress={() => setValue('music', undefined)}>
-              <Text style={styles.removeButtonText}>Remove audio</Text>
-            </Pressable>
-          </View>
-        )}
+          </Pressable>
+          {uploadingMusic && <Text style={styles.uploadHint}>Uploading…</Text>}
+          {music?.url && (
+            <View style={styles.audioPreview}>
+              <Ionicons name="musical-note" size={24} color="#2563eb" />
+              <Text style={styles.audioPreviewText}>
+                {music.title ?? 'Uploaded audio file'}
+              </Text>
+              <Pressable onPress={() => setValue('music', undefined)}>
+                <Text style={styles.clearButtonText}>Remove audio</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
 
       <Pressable style={styles.saveButton} onPress={handleSubmit(onSubmit)}>
-        <Text style={styles.saveButtonText}>Save schedule</Text>
+        <Text style={styles.saveButtonText}>Save Schedule</Text>
       </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 40 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '500', marginTop: 16, marginBottom: 8 },
+  screen: { flex: 1, backgroundColor: '#e0f2ff' },
+  container: { padding: 20, paddingBottom: 40 },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 20,
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+  },
+  fieldGroup: { marginBottom: 16 },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 10,
+    borderColor: '#cbd5f5',
+    backgroundColor: '#f8fbff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#0f172a',
   },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  stepCard: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 8,
+  multiline: { minHeight: 96, textAlignVertical: 'top' },
+  stepWrapper: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#d0e4ff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    backgroundColor: '#f5faff',
   },
-  stepTitle: { fontWeight: '600', marginBottom: 8 },
-  mediaSection: { marginTop: 12, gap: 6 },
-  mediaButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#111827',
+  stepHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  mediaButtonText: { fontWeight: '600', color: '#111827' },
-  mediaInfo: { gap: 4 },
-  mediaInfoText: { color: '#374151' },
+  stepHeading: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    backgroundColor: '#e0f2ff',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+  uploadIcon: { marginRight: 6 },
+  uploadButtonText: { color: '#1d4ed8', fontWeight: '600', fontSize: 13 },
+  mediaPreviewContainer: {
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mediaPlaceholder: {
+    textAlign: 'center',
+    color: '#475569',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 160,
+    borderRadius: 10,
+    resizeMode: 'cover',
+  },
+  videoPreview: {
+    width: '100%',
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: '#000',
+  },
+  audioPreview: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  audioPreviewText: { fontSize: 14, color: '#1e293b', fontWeight: '500' },
   uploadHint: { color: '#6b7280', fontStyle: 'italic' },
-  removeButton: { marginTop: 8 },
-  removeButtonText: { color: '#b91c1c', fontWeight: '500' },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginBottom: 12,
+  },
+  clearButtonText: { color: '#b91c1c', fontWeight: '600' },
+  inlineFields: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inlineField: { flex: 1 },
+  removeStepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 12,
+  },
+  removeStepText: { color: '#b91c1c', fontWeight: '600' },
   addStepButton: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     borderWidth: 1,
-    borderColor: '#9ca3af',
-    alignItems: 'center',
-  },
-  addStepText: { fontWeight: '600', color: '#111827' },
-  saveButton: {
-    marginTop: 24,
-    padding: 14,
+    borderColor: '#93c5fd',
     borderRadius: 999,
-    backgroundColor: '#111827',
+    paddingVertical: 12,
+    backgroundColor: '#e0f2ff',
+  },
+  addStepText: {
+    color: '#1d4ed8',
+    fontWeight: '700',
+    fontSize: 14,
+    textTransform: 'uppercase',
+  },
+  saveButton: {
+    marginTop: 12,
+    backgroundColor: '#0f172a',
+    paddingVertical: 16,
+    borderRadius: 999,
     alignItems: 'center',
   },
-  saveButtonText: { color: '#fff', fontWeight: '600' },
+  saveButtonText: {
+    color: '#f8fafc',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
 });

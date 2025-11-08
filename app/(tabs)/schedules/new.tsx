@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  Modal,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -89,6 +90,9 @@ export default function NewScheduleScreen() {
     null,
   );
   const [uploadingMusic, setUploadingMusic] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [successVisible, setSuccessVisible] = React.useState(false);
+  const redirectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const music = watch('music');
 
@@ -166,6 +170,14 @@ export default function NewScheduleScreen() {
     }
   };
 
+  React.useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const onSubmit = async (values: FormValues) => {
     if (!user) {
       Alert.alert('Error', 'You must be logged in to save a schedule.');
@@ -173,6 +185,7 @@ export default function NewScheduleScreen() {
     }
 
     try {
+      setIsSaving(true);
       const steps: ScheduleStep[] = values.steps.map((s) => {
         const duration = Number(s.duration) || 0;
         const restDuration = Number(s.restDuration) || 0;
@@ -222,19 +235,16 @@ export default function NewScheduleScreen() {
 
       await setDoc(scheduleDoc, payload);
 
-      Alert.alert(
-        'Schedule Saved',
-        'Your schedule has been saved successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ],
-      );
+      setSuccessVisible(true);
+      redirectTimeoutRef.current = setTimeout(() => {
+        setSuccessVisible(false);
+        router.replace('/(tabs)');
+      }, 1600);
     } catch (err) {
       console.error('Error saving schedule', err);
       Alert.alert('Error', 'Failed to save schedule.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -472,9 +482,31 @@ export default function NewScheduleScreen() {
         </View>
       </View>
 
-      <Pressable style={styles.saveButton} onPress={handleSubmit(onSubmit)}>
-        <Text style={styles.saveButtonText}>Save Schedule</Text>
+      <Pressable
+        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+        onPress={isSaving ? undefined : handleSubmit(onSubmit)}
+      >
+        <Text style={styles.saveButtonText}>
+          {isSaving ? 'Saving…' : 'Save Schedule'}
+        </Text>
       </Pressable>
+
+      <Modal
+        visible={successVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <Ionicons name="checkmark-circle" size={56} color="#22c55e" />
+            <Text style={styles.successTitle}>Schedule saved!</Text>
+            <Text style={styles.successMessage}>
+              Redirecting you to your dashboard…
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -634,10 +666,46 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   saveButtonText: {
     color: '#f8fafc',
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+  },
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  successMessage: {
+    fontSize: 14,
+    color: '#475569',
+    textAlign: 'center',
   },
 });

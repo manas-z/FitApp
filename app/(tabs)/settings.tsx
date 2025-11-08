@@ -1,5 +1,5 @@
 // app/(tabs)/settings.tsx
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -11,15 +11,53 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  REST_DURATION_STORAGE_KEY,
+  DEFAULT_REST_DURATION_SECONDS,
+} from '../../constants/settings';
 
 const VOICES = ['Male Voice 1', 'Female Voice 1', 'Neutral Voice'];
 
 export default function SettingsScreen() {
-  const [restDuration, setRestDuration] = useState(40);
+  const [restDuration, setRestDuration] = useState(
+    DEFAULT_REST_DURATION_SECONDS,
+  );
   const [countdownEnabled, setCountdownEnabled] = useState(true);
   const [voice, setVoice] = useState<string>(VOICES[0]);
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const [defaultSprints, setDefaultSprints] = useState(3);
+
+  useEffect(() => {
+    let isMounted = true;
+    AsyncStorage.getItem(REST_DURATION_STORAGE_KEY)
+      .then((stored) => {
+        if (!stored || !isMounted) return;
+        const parsed = Number.parseInt(stored, 10);
+        if (!Number.isNaN(parsed)) {
+          setRestDuration(parsed);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load rest duration preference', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const persistRestDuration = useCallback(async (value: number) => {
+    try {
+      await AsyncStorage.setItem(
+        REST_DURATION_STORAGE_KEY,
+        value.toString(),
+      );
+    } catch (err) {
+      console.warn('Failed to persist rest duration preference', err);
+    }
+  }, []);
 
   const toggleVoiceMenu = () => {
     setIsVoiceMenuOpen((prev) => !prev);
@@ -64,6 +102,11 @@ export default function SettingsScreen() {
                 thumbTintColor="#2563eb"
                 value={restDuration}
                 onValueChange={(value) => setRestDuration(Math.round(value))}
+                onSlidingComplete={(value) => {
+                  const rounded = Math.round(value);
+                  setRestDuration(rounded);
+                  void persistRestDuration(rounded);
+                }}
               />
               <Text style={styles.sliderValue}>{restDuration}s</Text>
             </View>
@@ -179,6 +222,7 @@ export default function SettingsScreen() {
           accessibilityLabel="Save settings"
           style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
           onPress={() => {
+            void persistRestDuration(restDuration);
             console.log('Settings saved');
           }}
         >

@@ -46,7 +46,7 @@ export default function DashboardScreen() {
 
   const handlePlay = (scheduleId: string) => {
     router.push({
-      pathname: '/(tabs)/schedules/[id]',
+      pathname: '/(tabs)/schedules/[id]/play',
       params: { id: scheduleId },
     });
   };

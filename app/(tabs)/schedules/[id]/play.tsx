@@ -59,7 +59,9 @@ export default function PlayScheduleScreen() {
   const [repeatConfig, setRepeatConfig] = useState<Record<string, number>>({});
   const [repeatModalVisible, setRepeatModalVisible] = useState(false);
   const [pendingRepeat, setPendingRepeat] = useState(1);
-  const [showRestOverlay, setShowRestOverlay] = useState(false);
+  const [restContext, setRestContext] = useState<
+    'betweenRepeats' | 'betweenSteps' | null
+  >(null);
 
   const hasInitializedRef = useRef(false);
   const audioRef = useRef<Audio.Sound | null>(null);
@@ -140,22 +142,24 @@ export default function PlayScheduleScreen() {
     setCurrentStepIndex(0);
     setCurrentRepeatIndex(1);
     setPhase('step');
+    setRestContext(null);
     setRemainingSeconds(Math.max(steps[0]?.duration ?? 0, 0));
   }, [schedule, steps]);
 
   const advanceToNextStep = useCallback(() => {
-    setShowRestOverlay(false);
     setCurrentStepIndex((prevIndex) => {
       const nextIndex = prevIndex + 1;
       if (nextIndex >= steps.length) {
         setPhase('complete');
         setRemainingSeconds(0);
+        setRestContext(null);
         return prevIndex;
       }
 
       const nextStep = steps[nextIndex];
       setPhase('step');
       setCurrentRepeatIndex(1);
+      setRestContext(null);
       setRemainingSeconds(Math.max(nextStep?.duration ?? 0, 0));
       return nextIndex;
     });
@@ -170,16 +174,24 @@ export default function PlayScheduleScreen() {
 
     if (phase === 'step') {
       const desiredRepeats = repeatConfig[currentStep.id] ?? 1;
-      if (currentRepeatIndex < desiredRepeats) {
-        setCurrentRepeatIndex((prev) => prev + 1);
-        setRemainingSeconds(Math.max(currentStep.duration ?? 0, 0));
+      const hasMoreRepeats = currentRepeatIndex < desiredRepeats;
+
+      if (hasMoreRepeats) {
+        if (restDurationSetting > 0) {
+          setPhase('rest');
+          setRestContext('betweenRepeats');
+          setRemainingSeconds(restDurationSetting);
+        } else {
+          setCurrentRepeatIndex((prev) => prev + 1);
+          setRemainingSeconds(Math.max(currentStep.duration ?? 0, 0));
+        }
         return;
       }
 
       if (restDurationSetting > 0) {
         setPhase('rest');
+        setRestContext('betweenSteps');
         setRemainingSeconds(restDurationSetting);
-        setShowRestOverlay(true);
       } else {
         advanceToNextStep();
       }
@@ -187,17 +199,27 @@ export default function PlayScheduleScreen() {
     }
 
     if (phase === 'rest') {
+      if (restContext === 'betweenRepeats') {
+        setRestContext(null);
+        setPhase('step');
+        setCurrentRepeatIndex((prev) => prev + 1);
+        setRemainingSeconds(Math.max(currentStep.duration ?? 0, 0));
+        return;
+      }
+
+      setRestContext(null);
       advanceToNextStep();
     }
-  }, [
-    advanceToNextStep,
-    currentRepeatIndex,
-    currentStep,
-    phase,
-    repeatConfig,
-    restDurationSetting,
-    steps.length,
-  ]);
+}, [
+  advanceToNextStep,
+  currentRepeatIndex,
+  currentStep,
+  restContext,
+  phase,
+  repeatConfig,
+  restDurationSetting,
+  steps.length,
+]);
 
   useEffect(() => {
     if (!schedule || phase === 'complete') return;
@@ -422,34 +444,30 @@ export default function PlayScheduleScreen() {
         </View>
 
         <View style={styles.stageCard}>
-          <View style={styles.stepMetaRow}>
-            <Text style={styles.stepName} numberOfLines={1}>
-              {currentStep?.name?.trim() || 'Workout Step'}
-            </Text>
-            <Text style={styles.stepProgress}>
-              Step {currentStepIndex + 1} of {steps.length}
-            </Text>
-          </View>
-          <View style={styles.mediaWrapper}>{renderMedia()}</View>
-          <View style={styles.timerBlock}>
-            <Text style={styles.timerLabel}>
-              {phase === 'rest' ? 'Rest Time' : 'Active Time'}
-            </Text>
-            <Text style={styles.timerValue}>{formatTime(remainingSeconds)}</Text>
-            {phase === 'rest' ? (
-              <Pressable
-                style={styles.extendButton}
-                onPress={() => setRemainingSeconds((prev) => prev + 15)}
-                accessibilityLabel="Add fifteen seconds"
-              >
-                <Text style={styles.extendButtonText}>+ 15 sec</Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.repeatCounter}>
-                Round {currentRepeatIndex} of {plannedRepeats}
-              </Text>
-            )}
-          </View>
+          {phase === 'rest' ? (
+            <RestStage
+              remainingSeconds={remainingSeconds}
+              onExtend={() => setRemainingSeconds((prev) => prev + 15)}
+              restContext={restContext}
+              nextStep={
+                restContext === 'betweenRepeats'
+                  ? currentStep
+                  : steps[currentStepIndex + 1]
+              }
+              currentRepeatIndex={currentRepeatIndex}
+              plannedRepeats={plannedRepeats}
+            />
+          ) : (
+            <ActiveStage
+              currentStep={currentStep}
+              currentStepIndex={currentStepIndex}
+              totalSteps={steps.length}
+              remainingSeconds={remainingSeconds}
+              currentRepeatIndex={currentRepeatIndex}
+              plannedRepeats={plannedRepeats}
+              renderMedia={renderMedia}
+            />
+          )}
         </View>
 
         <View style={styles.queueCard}>
@@ -519,15 +537,104 @@ export default function PlayScheduleScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showRestOverlay && phase === 'rest'} transparent animationType="fade">
-        <View style={styles.restOverlay}>
-          <View style={styles.restCard}>
-            <Text style={styles.restTitle}>Rest</Text>
-            <Text style={styles.restMessage}>Catch your breath.</Text>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
+  );
+}
+
+type ActiveStageProps = {
+  currentStep: ScheduleStep | undefined;
+  currentStepIndex: number;
+  totalSteps: number;
+  remainingSeconds: number;
+  currentRepeatIndex: number;
+  plannedRepeats: number;
+  renderMedia: () => React.ReactNode;
+};
+
+function ActiveStage({
+  currentStep,
+  currentStepIndex,
+  totalSteps,
+  remainingSeconds,
+  currentRepeatIndex,
+  plannedRepeats,
+  renderMedia,
+}: ActiveStageProps) {
+  return (
+    <>
+      <View style={styles.stepMetaRow}>
+        <Text style={styles.stepName} numberOfLines={1}>
+          {currentStep?.name?.trim() || 'Workout Step'}
+        </Text>
+        <Text style={styles.stepProgress}>
+          Step {currentStepIndex + 1} of {totalSteps}
+        </Text>
+      </View>
+      <View style={styles.mediaWrapper}>{renderMedia()}</View>
+      <View style={styles.timerBlock}>
+        <Text style={styles.timerLabel}>Active Time</Text>
+        <Text style={styles.timerValue}>{formatTime(remainingSeconds)}</Text>
+        <Text style={styles.repeatCounter}>
+          Round {currentRepeatIndex} of {plannedRepeats}
+        </Text>
+      </View>
+    </>
+  );
+}
+
+type RestStageProps = {
+  remainingSeconds: number;
+  onExtend: () => void;
+  restContext: 'betweenRepeats' | 'betweenSteps' | null;
+  nextStep: ScheduleStep | undefined;
+  currentRepeatIndex: number;
+  plannedRepeats: number;
+};
+
+function RestStage({
+  remainingSeconds,
+  onExtend,
+  restContext,
+  nextStep,
+  currentRepeatIndex,
+  plannedRepeats,
+}: RestStageProps) {
+  const isBetweenRepeats = restContext === 'betweenRepeats';
+  const nextRepeatIndex = Math.min(plannedRepeats, currentRepeatIndex + 1);
+
+  return (
+    <>
+      <View style={styles.stepMetaRow}>
+        <Text style={styles.stepName} numberOfLines={1}>
+          Rest
+        </Text>
+        <Text style={styles.stepProgress}>
+          {isBetweenRepeats ? 'Between repeats' : 'Between steps'}
+        </Text>
+      </View>
+      <View style={styles.restStageBody}>
+        <Ionicons name="pause" size={40} color="#2563eb" />
+        <Text style={styles.restStageTitle}>Catch your breath</Text>
+        <Text style={styles.restStageMessage}>
+          {isBetweenRepeats
+            ? `Next round starts soon (Round ${nextRepeatIndex} of ${plannedRepeats}).`
+            : nextStep
+              ? `Up next: ${nextStep.name?.trim() || 'Next step'}.`
+              : 'Great work! This is your final rest.'}
+        </Text>
+      </View>
+      <View style={styles.timerBlock}>
+        <Text style={styles.timerLabel}>Rest Time</Text>
+        <Text style={styles.timerValue}>{formatTime(remainingSeconds)}</Text>
+        <Pressable
+          style={styles.extendButton}
+          onPress={onExtend}
+          accessibilityLabel="Add fifteen seconds"
+        >
+          <Text style={styles.extendButtonText}>+ 15 sec</Text>
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -602,6 +709,26 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  restStageBody: {
+    height: 240,
+    borderRadius: 18,
+    backgroundColor: '#e0f2ff',
+    marginBottom: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  restStageTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  restStageMessage: {
+    fontSize: 14,
+    color: '#475569',
+    textAlign: 'center',
   },
   mediaPlaceholder: {
     flex: 1,
@@ -721,22 +848,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
   },
   modalConfirmText: { color: '#ffffff', fontWeight: '700' },
-  restOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  restCard: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 40,
-    paddingVertical: 32,
-    borderRadius: 24,
-    alignItems: 'center',
-    gap: 6,
-  },
-  restTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a' },
-  restMessage: { fontSize: 14, color: '#475569' },
   primaryButton: {
     marginTop: 20,
     backgroundColor: '#2563eb',

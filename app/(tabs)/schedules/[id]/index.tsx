@@ -1,4 +1,4 @@
-// app/(tabs)/schedules/[id].tsx
+// app/(tabs)/schedules/[id]/index.tsx
 import React, { useEffect } from 'react';
 import {
   View,
@@ -20,14 +20,14 @@ import {
   deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { useFirebase, useUser, useDoc } from '../../../src/firebase';
+import { useFirebase, useUser, useDoc } from '../../../../src/firebase';
 import type {
   Schedule,
   ScheduleStep,
   ScheduleStepMedia,
   ScheduleMusic,
-} from '../../../src/lib/types';
-import { uploadToCloudinary } from '../../../src/lib/cloudinary';
+} from '../../../../src/lib/types';
+import { uploadToCloudinary } from '../../../../src/lib/cloudinary';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -77,7 +77,7 @@ export default function EditScheduleScreen() {
     defaultValues: { title: '', description: '', steps: [], music: undefined },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove } = useFieldArray<FormValues, 'steps'>({
     control,
     name: 'steps',
   });
@@ -103,7 +103,7 @@ export default function EditScheduleScreen() {
       description: schedule.description ?? '',
       music: schedule.music ?? undefined,
       steps:
-        schedule.steps?.map((s) => ({
+        schedule.steps?.map((s: ScheduleStep) => ({
           id: s.id,
           name: s.name,
           duration: String(s.duration ?? 0),
@@ -135,11 +135,14 @@ export default function EditScheduleScreen() {
         mediaType === 'image' ? 'image' : 'auto',
       );
 
-      setValue(`steps.${index}.media`, {
-        type: mediaType,
-        url: uploadResult.secureUrl,
-        hint: asset.name ?? uploadResult.originalFilename ?? undefined,
-      });
+      setValue(
+        `steps.${index}.media`,
+        {
+          type: mediaType,
+          url: uploadResult.secureUrl,
+          hint: asset.name ?? uploadResult.originalFilename ?? undefined,
+        } as StepForm['media'],
+      );
     } catch (err) {
       console.error('Error uploading step media', err);
       Alert.alert(
@@ -172,10 +175,13 @@ export default function EditScheduleScreen() {
         'auto',
       );
 
-      setValue('music', {
-        url: uploadResult.secureUrl,
-        title: asset.name ?? uploadResult.originalFilename ?? undefined,
-      });
+      setValue(
+        'music',
+        {
+          url: uploadResult.secureUrl,
+          title: asset.name ?? uploadResult.originalFilename ?? undefined,
+        } as FormValues['music'],
+      );
     } catch (err) {
       console.error('Error uploading music', err);
       Alert.alert(
@@ -384,7 +390,9 @@ export default function EditScheduleScreen() {
               {stepMedia && (
                 <Pressable
                   style={styles.clearButton}
-                  onPress={() => setValue(`steps.${index}.media`, undefined)}
+                  onPress={() =>
+                    setValue(`steps.${index}.media`, undefined as StepForm['media'])
+                  }
                 >
                   <Ionicons name="trash-outline" size={14} color="#b91c1c" />
                   <Text style={styles.clearButtonText}>Remove media</Text>
@@ -496,7 +504,9 @@ export default function EditScheduleScreen() {
               <Text style={styles.audioPreviewText}>
                 {music.title ?? 'Uploaded audio file'}
               </Text>
-              <Pressable onPress={() => setValue('music', undefined)}>
+              <Pressable
+                onPress={() => setValue('music', undefined as FormValues['music'])}
+              >
                 <Text style={styles.clearButtonText}>Remove audio</Text>
               </Pressable>
             </View>

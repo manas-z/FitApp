@@ -36,11 +36,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="schedules"
+        name="new-schedule"
         options={{
-          title: 'Schedules',
+          title: 'New Schedule',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="calendar" size={TAB_ICON_SIZE} color={color} />
+            <Ionicons name="add-circle" size={TAB_ICON_SIZE} color={color} />
           ),
         }}
       />

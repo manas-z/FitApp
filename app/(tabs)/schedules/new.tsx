@@ -184,6 +184,7 @@ export default function NewScheduleScreen() {
       return;
     }
 
+    let didSave = false;
     try {
       setIsSaving(true);
       const steps: ScheduleStep[] = values.steps.map((s) => {
@@ -235,16 +236,20 @@ export default function NewScheduleScreen() {
 
       await setDoc(scheduleDoc, payload);
 
+      didSave = true;
+      setIsSaving(false);
       setSuccessVisible(true);
       redirectTimeoutRef.current = setTimeout(() => {
         setSuccessVisible(false);
         router.replace('/(tabs)');
-      }, 1600);
+      }, 1200);
     } catch (err) {
       console.error('Error saving schedule', err);
       Alert.alert('Error', 'Failed to save schedule.');
     } finally {
-      setIsSaving(false);
+      if (!didSave) {
+        setIsSaving(false);
+      }
     }
   };
 

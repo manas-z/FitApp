@@ -55,7 +55,7 @@ export default function PlayScheduleScreen() {
   const [phase, setPhase] = useState<'step' | 'rest' | 'complete'>('step');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [currentRepeatIndex, setCurrentRepeatIndex] = useState(1);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [repeatConfig, setRepeatConfig] = useState<Record<string, number>>({});
   const [repeatModalVisible, setRepeatModalVisible] = useState(false);
   const [pendingRepeat, setPendingRepeat] = useState(1);
@@ -222,7 +222,7 @@ export default function PlayScheduleScreen() {
 ]);
 
   useEffect(() => {
-    if (!schedule || phase === 'complete') return;
+    if (!schedule || phase === 'complete' || remainingSeconds === null) return;
 
     if (remainingSeconds <= 0) {
       handlePhaseCompletion();
@@ -230,7 +230,10 @@ export default function PlayScheduleScreen() {
     }
 
     const timeout = setTimeout(() => {
-      setRemainingSeconds((prev) => Math.max(prev - 1, 0));
+      setRemainingSeconds((prev) => {
+        if (prev === null) return null;
+        return Math.max(prev - 1, 0);
+      });
     }, 1000);
 
     return () => clearTimeout(timeout);
@@ -446,8 +449,10 @@ export default function PlayScheduleScreen() {
         <View style={styles.stageCard}>
           {phase === 'rest' ? (
             <RestStage
-              remainingSeconds={remainingSeconds}
-              onExtend={() => setRemainingSeconds((prev) => prev + 15)}
+              remainingSeconds={remainingSeconds ?? 0}
+              onExtend={() =>
+                setRemainingSeconds((prev) => (prev === null ? 15 : prev + 15))
+              }
               restContext={restContext}
               nextStep={
                 restContext === 'betweenRepeats'
@@ -462,7 +467,7 @@ export default function PlayScheduleScreen() {
               currentStep={currentStep}
               currentStepIndex={currentStepIndex}
               totalSteps={steps.length}
-              remainingSeconds={remainingSeconds}
+              remainingSeconds={remainingSeconds ?? 0}
               currentRepeatIndex={currentRepeatIndex}
               plannedRepeats={plannedRepeats}
               renderMedia={renderMedia}

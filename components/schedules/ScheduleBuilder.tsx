@@ -26,7 +26,8 @@ import DraggableFlatList, {
 } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
-import Slider from '@react-native-community/slider';
+import { Picker } from '@react-native-picker/picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ScheduleFormValues } from './types';
 import type { ScheduleStepMedia } from '../../src/lib/types';
 
@@ -108,6 +109,14 @@ type CounterControlProps = {
   description?: string;
 };
 
+type DurationPickerProps = {
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+};
+
 const CounterControl: React.FC<CounterControlProps> = ({
   label,
   value,
@@ -152,6 +161,159 @@ const CounterControl: React.FC<CounterControlProps> = ({
   );
 };
 
+const DurationPicker: React.FC<DurationPickerProps> = ({
+  value,
+  onChange,
+  min,
+  max,
+  step = 5,
+}) => {
+  const allowedValues = React.useMemo(() => {
+    const safeStep = Math.max(1, Math.round(step));
+    const roundedMin = Math.max(0, min);
+    const roundedMax = Math.max(roundedMin, max);
+    const values: number[] = [];
+    const first = Math.max(roundedMin, Math.ceil(roundedMin / safeStep) * safeStep);
+    for (let current = first; current <= roundedMax; current += safeStep) {
+      values.push(current);
+    }
+    if (values.length === 0) {
+      values.push(roundedMin);
+    }
+    return values;
+  }, [min, max, step]);
+
+  const valueSet = React.useMemo(() => new Set(allowedValues), [allowedValues]);
+
+  const safeValue = React.useMemo(() => {
+    if (!Number.isFinite(value)) {
+      return allowedValues[0];
+    }
+    const clamped = Math.min(Math.max(Math.round(value), allowedValues[0]), allowedValues[allowedValues.length - 1]);
+    return allowedValues.reduce((closest, current) => {
+      const diff = Math.abs(current - clamped);
+      const closestDiff = Math.abs(closest - clamped);
+      if (diff < closestDiff) {
+        return current;
+      }
+      return closest;
+    }, allowedValues[0]);
+  }, [allowedValues, value]);
+
+  const buckets = React.useMemo(() => {
+    const map = new Map<number, number[]>();
+    allowedValues.forEach((allowed) => {
+      const minute = Math.floor(allowed / 60);
+      const second = allowed % 60;
+      const seconds = map.get(minute) ?? [];
+      if (!seconds.includes(second)) {
+        seconds.push(second);
+      }
+      map.set(minute, seconds);
+    });
+    map.forEach((seconds) => seconds.sort((a, b) => a - b));
+    return map;
+  }, [allowedValues]);
+
+  const minuteOptions = React.useMemo(
+    () => Array.from(buckets.keys()).sort((a, b) => a - b),
+    [buckets],
+  );
+
+  const [selectedMinute, setSelectedMinute] = React.useState(Math.floor(safeValue / 60));
+  const [selectedSecond, setSelectedSecond] = React.useState(safeValue % 60);
+
+  React.useEffect(() => {
+    setSelectedMinute(Math.floor(safeValue / 60));
+    setSelectedSecond(safeValue % 60);
+  }, [safeValue]);
+
+  const secondsForMinute = React.useMemo(
+    () => buckets.get(selectedMinute) ?? [],
+    [buckets, selectedMinute],
+  );
+
+  React.useEffect(() => {
+    if (!secondsForMinute.includes(selectedSecond) && secondsForMinute.length > 0) {
+      const fallback = secondsForMinute[0];
+      setSelectedSecond(fallback);
+      const total = selectedMinute * 60 + fallback;
+      if (valueSet.has(total)) {
+        onChange(total);
+      }
+    }
+  }, [secondsForMinute, selectedSecond, selectedMinute, valueSet, onChange]);
+
+  const handleMinuteChange = (nextMinute: number) => {
+    setSelectedMinute(nextMinute);
+    const seconds = buckets.get(nextMinute) ?? [];
+    const nextSecond = seconds.includes(selectedSecond) ? selectedSecond : seconds[0] ?? 0;
+    const total = nextMinute * 60 + nextSecond;
+    if (valueSet.has(total)) {
+      onChange(total);
+    } else if (seconds.length) {
+      onChange(nextMinute * 60 + seconds[0]);
+    } else {
+      onChange(allowedValues[0]);
+    }
+  };
+
+  const handleSecondChange = (nextSecond: number) => {
+    setSelectedSecond(nextSecond);
+    const total = selectedMinute * 60 + nextSecond;
+    if (valueSet.has(total)) {
+      onChange(total);
+    } else {
+      const seconds = buckets.get(selectedMinute) ?? [];
+      if (seconds.length) {
+        onChange(selectedMinute * 60 + seconds[0]);
+      }
+    }
+  };
+
+  return (
+    <View style={styles.durationPicker}>
+      <View style={styles.durationHighlight} pointerEvents="none" />
+      <View style={styles.durationColumn}>
+        <Text style={styles.durationColumnLabel}>Minutes</Text>
+        <Picker
+          selectedValue={selectedMinute}
+          onValueChange={handleMinuteChange}
+          style={styles.durationWheel}
+          itemStyle={styles.durationItem}
+        >
+          {minuteOptions.map((minute) => (
+            <Picker.Item
+              key={minute}
+              label={String(minute).padStart(2, '0')}
+              value={minute}
+              color="#0f172a"
+            />
+          ))}
+        </Picker>
+      </View>
+      <View style={styles.durationColumn}>
+        <Text style={styles.durationColumnLabel}>Seconds</Text>
+        <Picker
+          selectedValue={selectedSecond}
+          onValueChange={handleSecondChange}
+          style={styles.durationWheel}
+          itemStyle={styles.durationItem}
+        >
+          {secondsForMinute.map((second) => (
+            <Picker.Item
+              key={second}
+              label={String(second).padStart(2, '0')}
+              value={second}
+              color="#0f172a"
+            />
+          ))}
+        </Picker>
+      </View>
+    </View>
+  );
+};
+
 const StepEditorModal: React.FC<StepEditorModalProps> = ({
   control,
   visible,
@@ -162,6 +324,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
   uploadingStepIndex,
 }) => {
   const step = useWatch({ control, name: `steps.${stepIndex}` });
+  const insets = useSafeAreaInsets();
 
   if (!visible || !step) {
     return null;
@@ -169,6 +332,15 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
 
   const media = step.media;
   const durationLabel = formatSecondsToClock(step.duration ?? 0);
+  const footerPadding = Math.max(insets.bottom, 16);
+  const contentPadding = React.useMemo(
+    () => [styles.modalContent, { paddingBottom: footerPadding + 72 }],
+    [footerPadding],
+  );
+  const footerStyle = React.useMemo(
+    () => [styles.modalFooter, { paddingBottom: footerPadding }],
+    [footerPadding],
+  );
 
   return (
     <Modal
@@ -185,7 +357,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
         >
           <View style={styles.modalCard}>
             <ScrollView
-              contentContainerStyle={styles.modalContent}
+              contentContainerStyle={contentPadding}
               showsVerticalScrollIndicator={false}
             >
               <Text style={styles.modalTitle}>Step {stepIndex + 1} details</Text>
@@ -208,33 +380,32 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
               </View>
 
               <View style={styles.fieldGroup}>
-                <View style={styles.settingHeaderRow}>
-                  <Text style={styles.label}>Duration</Text>
-                  <Text style={styles.settingValue}>{durationLabel}</Text>
+                <Text style={styles.label}>Duration</Text>
+                <View style={styles.durationCard}>
+                  <View style={styles.durationHeaderRow}>
+                    <Text style={styles.durationHeading}>Set time</Text>
+                    <Text style={styles.durationCurrent}>{durationLabel}</Text>
+                  </View>
+                  <Controller
+                    control={control}
+                    name={`steps.${stepIndex}.duration`}
+                    render={({ field: { onChange, value } }) => {
+                      const safeValue = Number.isFinite(value)
+                        ? Math.max(DURATION_MIN, Math.round(value))
+                        : DURATION_MIN;
+                      return (
+                        <DurationPicker
+                          value={safeValue}
+                          min={DURATION_MIN}
+                          max={DURATION_MAX}
+                          onChange={onChange}
+                          step={5}
+                        />
+                      );
+                    }}
+                  />
+                  <Text style={styles.durationHint}>Scroll to fine tune minutes and seconds.</Text>
                 </View>
-                <Controller
-                  control={control}
-                  name={`steps.${stepIndex}.duration`}
-                  render={({ field: { onChange, value } }) => {
-                    const safeValue = Number.isFinite(value)
-                      ? Math.max(DURATION_MIN, Math.round(value))
-                      : DURATION_MIN;
-                    return (
-                      <Slider
-                        style={styles.slider}
-                        minimumValue={DURATION_MIN}
-                        maximumValue={DURATION_MAX}
-                        step={5}
-                        value={safeValue}
-                        onValueChange={(val) => onChange(Math.round(val))}
-                        minimumTrackTintColor="#2563eb"
-                        maximumTrackTintColor="#cbd5f5"
-                        thumbTintColor="#2563eb"
-                      />
-                    );
-                  }}
-                />
-                <Text style={styles.sliderHint}>Use the slider to set the step duration.</Text>
               </View>
 
               <Controller
@@ -345,7 +516,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={footerStyle}>
               <Pressable style={styles.modalActionSecondary} onPress={onClose}>
                 <Text style={styles.modalActionSecondaryText}>Cancel</Text>
               </Pressable>
@@ -652,29 +823,28 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               control={control}
               name={`steps.${index}.restDuration`}
               render={({ field: { value, onChange } }) => {
-                const sliderValue = value && value > 0 ? Math.round(value) : REST_DEFAULT;
+                const pickerValue = value && value > 0 ? Math.round(value) : REST_DEFAULT;
                 return (
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={REST_MIN}
-                    maximumValue={REST_MAX}
-                    step={5}
-                    value={sliderValue}
-                    onValueChange={(val) => {
-                      const next = Math.round(val);
-                      onChange(next);
-                      if (restEditorIndex !== index) {
-                        setRestEditorIndex(index);
-                      }
-                    }}
-                    minimumTrackTintColor="#2563eb"
-                    maximumTrackTintColor="#cbd5f5"
-                    thumbTintColor="#2563eb"
-                  />
+                  <>
+                    <DurationPicker
+                      value={pickerValue}
+                      min={REST_MIN}
+                      max={REST_MAX}
+                      onChange={(next) => {
+                        onChange(next);
+                        if (restEditorIndex !== index) {
+                          setRestEditorIndex(index);
+                        }
+                      }}
+                      step={5}
+                    />
+                    <Text style={styles.durationHint}>
+                      Scroll to fine tune the recovery window.
+                    </Text>
+                  </>
                 );
               }}
             />
-            <Text style={styles.sliderHint}>Adjust how long to rest before the next step.</Text>
             <Pressable
               style={styles.removeRestButton}
               onPress={() => {
@@ -870,13 +1040,82 @@ const styles = StyleSheet.create({
     minHeight: 96,
     textAlignVertical: 'top',
   },
-  slider: {
-    width: '100%',
+  durationCard: {
+    backgroundColor: '#f8fbff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  sliderHint: {
+  durationHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  durationHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  durationCurrent: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  durationHint: {
     fontSize: 12,
     color: '#475569',
-    marginTop: 6,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  durationPicker: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#e2e8f0',
+    position: 'relative',
+    overflow: 'hidden',
+    paddingHorizontal: 12,
+  },
+  durationHighlight: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 52,
+    backgroundColor: '#dbeafe',
+    top: '50%',
+    marginTop: -26,
+    borderRadius: 12,
+    opacity: 0.7,
+  },
+  durationColumn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  durationColumnLabel: {
+    fontSize: 12,
+    color: '#1e293b',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  durationWheel: {
+    width: '100%',
+    height: 150,
+    backgroundColor: 'transparent',
+  },
+  durationItem: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#0f172a',
   },
   counterGroup: {
     flexDirection: 'row',
@@ -1299,19 +1538,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    maxHeight: '90%',
+    flex: 1,
     width: '100%',
+    justifyContent: 'flex-end',
   },
   modalCard: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: 16,
+    maxHeight: '90%',
+    width: '100%',
+    overflow: 'hidden',
   },
   modalContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
@@ -1382,6 +1623,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 12,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalActionSecondary: {
     flex: 1,

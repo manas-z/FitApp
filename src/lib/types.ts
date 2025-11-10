@@ -14,7 +14,9 @@ export interface ScheduleStep {
   duration: number; // seconds
   restDuration?: number; // seconds between this and the next step
   media?: ScheduleStepMedia;
-  instruction?: string;
+  sprintCount?: number;
+  countdownVoice?: number;
+  muteBackground?: boolean;
 }
 
 export interface ScheduleMusic {

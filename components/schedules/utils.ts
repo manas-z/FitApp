@@ -8,8 +8,10 @@ export function createEmptyStep(): StepForm {
   return {
     id: makeStepId(),
     name: 'New step',
-    duration: '30',
-    restDuration: '10',
-    instruction: '',
+    duration: 30,
+    restDuration: 0,
+    sprintCount: 1,
+    countdownVoice: 5,
+    muteBackground: false,
   };
 }

@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -16,6 +17,7 @@ import {
   Control,
   Controller,
   FieldArrayWithId,
+  UseFormSetValue,
   UseFormWatch,
   useWatch,
 } from 'react-hook-form';
@@ -24,6 +26,7 @@ import DraggableFlatList, {
 } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
+import Slider from '@react-native-community/slider';
 import type { ScheduleFormValues } from './types';
 import type { ScheduleStepMedia } from '../../src/lib/types';
 
@@ -32,6 +35,7 @@ type ScheduleBuilderProps = {
   watch: UseFormWatch<ScheduleFormValues>;
   fields: FieldArrayWithId<ScheduleFormValues, 'steps', 'id'>[];
   onAddStep: () => void;
+  onInsertStep: (index: number) => void;
   onRemoveStep: (index: number) => void;
   onReorderSteps: (from: number, to: number) => void;
   onSubmit: () => void;
@@ -41,6 +45,7 @@ type ScheduleBuilderProps = {
   onRemoveStepMedia: (index: number) => void;
   editingStepIndex: number | null;
   setEditingStepIndex: (index: number | null) => void;
+  setValue: UseFormSetValue<ScheduleFormValues>;
   uploadingMusic: boolean;
   onPickMusic: () => Promise<void>;
   onRemoveMusic: () => void;
@@ -59,7 +64,6 @@ type StepEditorModalProps = {
   onClose: () => void;
   onPickStepMedia: (index: number) => Promise<void>;
   onRemoveStepMedia: (index: number) => void;
-  onAddNextStep: () => void;
   uploadingStepIndex: number | null;
 };
 
@@ -90,6 +94,64 @@ function mediaIconForType(media?: ScheduleStepMedia) {
   return 'image-outline';
 }
 
+const DURATION_MIN = 5;
+const DURATION_MAX = 900;
+const REST_MIN = 5;
+const REST_MAX = 600;
+const REST_DEFAULT = 30;
+
+type CounterControlProps = {
+  label: string;
+  value: number;
+  min?: number;
+  onChange: (value: number) => void;
+  description?: string;
+};
+
+const CounterControl: React.FC<CounterControlProps> = ({
+  label,
+  value,
+  min = 0,
+  onChange,
+  description,
+}) => {
+  const clampedValue = Number.isFinite(value) ? value : min;
+  const handleDecrease = () => {
+    const next = Math.max(min, Math.round(clampedValue) - 1);
+    onChange(next);
+  };
+  const handleIncrease = () => {
+    onChange(Math.round(clampedValue) + 1);
+  };
+  const disableDecrease = clampedValue <= min;
+
+  return (
+    <View style={styles.counterGroup}>
+      <View style={styles.counterCopy}>
+        <Text style={styles.counterLabel}>{label}</Text>
+        {description ? <Text style={styles.counterHint}>{description}</Text> : null}
+      </View>
+      <View style={styles.counterControls}>
+        <Pressable
+          style={[styles.counterButton, disableDecrease && styles.counterButtonDisabled]}
+          onPress={handleDecrease}
+          disabled={disableDecrease}
+        >
+          <Ionicons
+            name="remove"
+            size={16}
+            color={disableDecrease ? '#94a3b8' : '#0f172a'}
+          />
+        </Pressable>
+        <Text style={styles.counterValue}>{clampedValue}</Text>
+        <Pressable style={styles.counterButton} onPress={handleIncrease}>
+          <Ionicons name="add" size={16} color="#0f172a" />
+        </Pressable>
+      </View>
+    </View>
+  );
+};
+
 const StepEditorModal: React.FC<StepEditorModalProps> = ({
   control,
   visible,
@@ -97,7 +159,6 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
   onClose,
   onPickStepMedia,
   onRemoveStepMedia,
-  onAddNextStep,
   uploadingStepIndex,
 }) => {
   const step = useWatch({ control, name: `steps.${stepIndex}` });
@@ -107,6 +168,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
   }
 
   const media = step.media;
+  const durationLabel = formatSecondsToClock(step.duration ?? 0);
 
   return (
     <Modal
@@ -145,57 +207,80 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                 />
               </View>
 
-              <View style={styles.inlineFields}>
-                <View style={styles.inlineField}>
-                  <Text style={styles.label}>Duration (seconds)</Text>
-                  <Controller
-                    control={control}
-                    name={`steps.${stepIndex}.duration`}
-                    render={({ field: { onChange, value } }) => (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="45"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="numeric"
-                        value={value}
-                        onChangeText={onChange}
-                      />
-                    )}
-                  />
-                </View>
-                <View style={styles.inlineField}>
-                  <Text style={styles.label}>Rest after (seconds)</Text>
-                  <Controller
-                    control={control}
-                    name={`steps.${stepIndex}.restDuration`}
-                    render={({ field: { onChange, value } }) => (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="15"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="numeric"
-                        value={value}
-                        onChangeText={onChange}
-                      />
-                    )}
-                  />
-                </View>
-              </View>
-
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Instruction / Voice script</Text>
+                <View style={styles.settingHeaderRow}>
+                  <Text style={styles.label}>Duration</Text>
+                  <Text style={styles.settingValue}>{durationLabel}</Text>
+                </View>
                 <Controller
                   control={control}
-                  name={`steps.${stepIndex}.instruction`}
-                  render={({ field: { onChange, value } }) => (
-                    <TextInput
-                      style={[styles.input, styles.multiline]}
-                      placeholder="Add spoken or on-screen instructions"
-                      placeholderTextColor="#94a3b8"
-                      value={value}
-                      onChangeText={onChange}
-                      multiline
-                      numberOfLines={3}
+                  name={`steps.${stepIndex}.duration`}
+                  render={({ field: { onChange, value } }) => {
+                    const safeValue = Number.isFinite(value)
+                      ? Math.max(DURATION_MIN, Math.round(value))
+                      : DURATION_MIN;
+                    return (
+                      <Slider
+                        style={styles.slider}
+                        minimumValue={DURATION_MIN}
+                        maximumValue={DURATION_MAX}
+                        step={5}
+                        value={safeValue}
+                        onValueChange={(val) => onChange(Math.round(val))}
+                        minimumTrackTintColor="#2563eb"
+                        maximumTrackTintColor="#cbd5f5"
+                        thumbTintColor="#2563eb"
+                      />
+                    );
+                  }}
+                />
+                <Text style={styles.sliderHint}>Use the slider to set the step duration.</Text>
+              </View>
+
+              <Controller
+                control={control}
+                name={`steps.${stepIndex}.sprintCount`}
+                render={({ field: { value, onChange } }) => (
+                  <CounterControl
+                    label="Sprint"
+                    value={Math.max(1, Math.round(value ?? 1))}
+                    min={1}
+                    description="Number of rounds for this movement."
+                    onChange={onChange}
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                name={`steps.${stepIndex}.countdownVoice`}
+                render={({ field: { value, onChange } }) => (
+                  <CounterControl
+                    label="Countdown with voice"
+                    value={Math.max(0, Math.round(value ?? 0))}
+                    min={0}
+                    description="Seconds for the vocal countdown."
+                    onChange={onChange}
+                  />
+                )}
+              />
+
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleCopy}>
+                  <Text style={styles.toggleLabel}>Mute background</Text>
+                  <Text style={styles.toggleHint}>
+                    Silence background music while this step plays.
+                  </Text>
+                </View>
+                <Controller
+                  control={control}
+                  name={`steps.${stepIndex}.muteBackground`}
+                  render={({ field: { value, onChange } }) => (
+                    <Switch
+                      value={Boolean(value)}
+                      onValueChange={onChange}
+                      trackColor={{ false: '#cbd5f5', true: '#2563eb' }}
+                      thumbColor={Boolean(value) ? '#1d4ed8' : '#f8fafc'}
                     />
                   )}
                 />
@@ -258,11 +343,6 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                   </Pressable>
                 ) : null}
               </View>
-
-              <Pressable style={styles.addNextStepButton} onPress={onAddNextStep}>
-                <Ionicons name="add-circle-outline" size={18} color="#2563eb" />
-                <Text style={styles.addNextStepText}>Add another step</Text>
-              </Pressable>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -270,7 +350,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                 <Text style={styles.modalActionSecondaryText}>Cancel</Text>
               </Pressable>
               <Pressable style={styles.modalActionPrimary} onPress={onClose}>
-                <Text style={styles.modalActionPrimaryText}>Done</Text>
+                <Text style={styles.modalActionPrimaryText}>Save</Text>
               </Pressable>
             </View>
           </View>
@@ -285,6 +365,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
   watch,
   fields,
   onAddStep,
+  onInsertStep,
   onRemoveStep,
   onReorderSteps,
   onSubmit,
@@ -294,6 +375,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
   onRemoveStepMedia,
   editingStepIndex,
   setEditingStepIndex,
+  setValue,
   uploadingMusic,
   onPickMusic,
   onRemoveMusic,
@@ -302,11 +384,28 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
 }) => {
   const steps = watch('steps') ?? [];
   const music = watch('music');
+  const [insertMenuIndex, setInsertMenuIndex] = React.useState<number | null>(null);
+  const [restEditorIndex, setRestEditorIndex] = React.useState<number | null>(null);
   const totalDuration = steps.reduce((sum, step) => {
     const duration = Number(step?.duration) || 0;
     const rest = Number(step?.restDuration) || 0;
     return sum + duration + rest;
   }, 0);
+
+  React.useEffect(() => {
+    if (insertMenuIndex !== null && insertMenuIndex >= steps.length) {
+      setInsertMenuIndex(null);
+    }
+  }, [insertMenuIndex, steps.length]);
+
+  React.useEffect(() => {
+    if (restEditorIndex !== null) {
+      const value = steps[restEditorIndex]?.restDuration ?? 0;
+      if (!value || value <= 0) {
+        setRestEditorIndex(null);
+      }
+    }
+  }, [restEditorIndex, steps]);
 
   const listHeader = React.useMemo(() => {
     const totalLabel = formatSecondsToClock(totalDuration);
@@ -459,64 +558,178 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
       parts.push(`Rest ${formatSecondsToClock(rest)}`);
     }
     const summary = parts.join('  |  ');
+    const showRestBlock = rest > 0 || restEditorIndex === index;
+    const sprintCount = Math.max(1, Math.round(step.sprintCount ?? 1));
+    const countdownVoice = Math.max(0, Math.round(step.countdownVoice ?? 0));
 
     return (
-      <Pressable
-        onPress={() => setEditingStepIndex(index)}
-        style={[styles.stepCard, isActive && styles.stepCardActive]}
-      >
-        <View style={styles.stepRow}>
-          <Pressable
-            onLongPress={drag}
-            onPressIn={drag}
-            hitSlop={8}
-            style={styles.dragHandle}
-          >
-            <Ionicons name="reorder-three" size={28} color="#334155" />
-          </Pressable>
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle} numberOfLines={1}>
-              {step.name?.trim() || `Step ${index + 1}`}
-            </Text>
-            <Text style={styles.stepSubtitle} numberOfLines={1}>
-              {summary || 'No duration set'}
-            </Text>
-            {step.instruction?.trim() ? (
-              <Text style={styles.stepInstruction} numberOfLines={1}>
-                {step.instruction.trim()}
+      <View style={styles.stepItem}>
+        <Pressable
+          onPress={() => {
+            setInsertMenuIndex(null);
+            setEditingStepIndex(index);
+          }}
+          style={[styles.stepCard, isActive && styles.stepCardActive]}
+        >
+          <View style={styles.stepRow}>
+            <Pressable
+              onLongPress={drag}
+              onPressIn={drag}
+              hitSlop={8}
+              style={styles.dragHandle}
+            >
+              <Ionicons name="reorder-three" size={28} color="#334155" />
+            </Pressable>
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle} numberOfLines={1}>
+                {step.name?.trim() || `Step ${index + 1}`}
               </Text>
-            ) : null}
-            {step.media?.url ? (
-              <View style={styles.stepMediaRow}>
-                <Ionicons
-                  name={mediaIconForType(step.media)}
-                  size={16}
-                  color="#2563eb"
-                />
-                <Text style={styles.stepMediaText} numberOfLines={1}>
-                  {step.media.hint ?? 'Attached file'}
-                </Text>
+              <Text style={styles.stepSubtitle} numberOfLines={1}>
+                {summary || 'No duration set'}
+              </Text>
+              <View style={styles.stepMetaRow}>
+                <View style={styles.stepMetaPill}>
+                  <Ionicons name="repeat-outline" size={14} color="#2563eb" />
+                  <Text style={styles.stepMetaText}>
+                    {sprintCount} Sprint{sprintCount === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                <View style={styles.stepMetaPill}>
+                  <Ionicons name="mic-outline" size={14} color="#2563eb" />
+                  <Text style={styles.stepMetaText}>{countdownVoice}s Voice</Text>
+                </View>
+                {step.muteBackground ? (
+                  <View style={[styles.stepMetaPill, styles.stepMetaPillDanger]}>
+                    <Ionicons name="volume-mute-outline" size={14} color="#dc2626" />
+                    <Text style={[styles.stepMetaText, styles.stepMetaDangerText]}>Muted</Text>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
+              {step.media?.url ? (
+                <View style={styles.stepMediaRow}>
+                  <Ionicons
+                    name={mediaIconForType(step.media)}
+                    size={16}
+                    color="#2563eb"
+                  />
+                  <Text style={styles.stepMediaText} numberOfLines={1}>
+                    {step.media.hint ?? 'Attached file'}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.stepActions}>
+              <Pressable
+                accessibilityLabel="Edit step"
+                onPress={() => {
+                  setInsertMenuIndex(null);
+                  setEditingStepIndex(index);
+                }}
+                style={styles.iconButton}
+              >
+                <Ionicons name="create-outline" size={18} color="#0f172a" />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Delete step"
+                onPress={() => onRemoveStep(index)}
+                style={styles.iconButton}
+              >
+                <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.stepActions}>
+        </Pressable>
+
+        {showRestBlock ? (
+          <View style={styles.restCard}>
+            <View style={styles.restHeader}>
+              <Text style={styles.restTitle}>Rest interval</Text>
+              <Text style={styles.restValue}>
+                {formatSecondsToClock(rest > 0 ? rest : REST_DEFAULT)}
+              </Text>
+            </View>
+            <Controller
+              control={control}
+              name={`steps.${index}.restDuration`}
+              render={({ field: { value, onChange } }) => {
+                const sliderValue = value && value > 0 ? Math.round(value) : REST_DEFAULT;
+                return (
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={REST_MIN}
+                    maximumValue={REST_MAX}
+                    step={5}
+                    value={sliderValue}
+                    onValueChange={(val) => {
+                      const next = Math.round(val);
+                      onChange(next);
+                      if (restEditorIndex !== index) {
+                        setRestEditorIndex(index);
+                      }
+                    }}
+                    minimumTrackTintColor="#2563eb"
+                    maximumTrackTintColor="#cbd5f5"
+                    thumbTintColor="#2563eb"
+                  />
+                );
+              }}
+            />
+            <Text style={styles.sliderHint}>Adjust how long to rest before the next step.</Text>
             <Pressable
-              accessibilityLabel="Edit step"
-              onPress={() => setEditingStepIndex(index)}
-              style={styles.iconButton}
+              style={styles.removeRestButton}
+              onPress={() => {
+                setValue(`steps.${index}.restDuration`, 0);
+                setRestEditorIndex(null);
+              }}
             >
-              <Ionicons name="create-outline" size={18} color="#0f172a" />
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Delete step"
-              onPress={() => onRemoveStep(index)}
-              style={styles.iconButton}
-            >
-              <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              <Ionicons name="trash-outline" size={16} color="#dc2626" />
+              <Text style={styles.removeRestText}>Remove rest</Text>
             </Pressable>
           </View>
+        ) : null}
+
+        <View style={styles.insertRow}>
+          <View style={styles.insertDivider} />
+          <Pressable
+            style={styles.insertButton}
+            onPress={() =>
+              setInsertMenuIndex((current) => (current === index ? null : index))
+            }
+          >
+            <Ionicons name="add" size={20} color="#2563eb" />
+          </Pressable>
+          <View style={styles.insertDivider} />
         </View>
-      </Pressable>
+
+        {insertMenuIndex === index ? (
+          <View style={styles.insertMenu}>
+            <Pressable
+              style={styles.insertMenuItem}
+              onPress={() => {
+                setInsertMenuIndex(null);
+                onInsertStep(index + 1);
+              }}
+            >
+              <Ionicons name="list-circle-outline" size={18} color="#2563eb" />
+              <Text style={styles.insertMenuText}>Add step</Text>
+            </Pressable>
+            <Pressable
+              style={styles.insertMenuItem}
+              onPress={() => {
+                setInsertMenuIndex(null);
+                const currentRest = steps[index]?.restDuration ?? 0;
+                if (!currentRest || currentRest <= 0) {
+                  setValue(`steps.${index}.restDuration`, REST_DEFAULT);
+                }
+                setRestEditorIndex(index);
+              }}
+            >
+              <Ionicons name="timer-outline" size={18} color="#2563eb" />
+              <Text style={styles.insertMenuText}>Add rest</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
     );
   };
 
@@ -582,15 +795,6 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
         onClose={() => setEditingStepIndex(null)}
         onPickStepMedia={onPickStepMedia}
         onRemoveStepMedia={onRemoveStepMedia}
-        onAddNextStep={() => {
-          onAddStep();
-          setTimeout(() => {
-            const latestSteps = watch('steps') ?? [];
-            if (latestSteps.length > 0) {
-              setEditingStepIndex(latestSteps.length - 1);
-            }
-          }, 0);
-        }}
         uploadingStepIndex={uploadingStepIndex}
       />
     </View>
@@ -641,6 +845,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  settingHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  settingValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#cbd5f5',
@@ -654,6 +869,87 @@ const styles = StyleSheet.create({
   multiline: {
     minHeight: 96,
     textAlignVertical: 'top',
+  },
+  slider: {
+    width: '100%',
+  },
+  sliderHint: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 6,
+  },
+  counterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 12,
+  },
+  counterCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  counterLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  counterHint: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  counterControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  counterButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  counterButtonDisabled: {
+    backgroundColor: '#e2e8f088',
+  },
+  counterValue: {
+    minWidth: 24,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: '#f8fbff',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
+  },
+  toggleCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: '#475569',
   },
   infoRow: {
     flexDirection: 'row',
@@ -736,13 +1032,6 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontWeight: '600',
   },
-  inlineFields: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  inlineField: {
-    flex: 1,
-  },
   stepHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -772,6 +1061,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     fontSize: 12,
+  },
+  stepItem: {
+    marginBottom: 24,
   },
   stepCard: {
     backgroundColor: '#ffffff',
@@ -811,9 +1103,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#475569',
   },
-  stepInstruction: {
-    fontSize: 12,
-    color: '#334155',
+  stepMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  stepMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#e0f2ff',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  stepMetaPillDanger: {
+    backgroundColor: '#fee2e2',
+  },
+  stepMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  stepMetaDangerText: {
+    color: '#b91c1c',
   },
   stepMediaRow: {
     flexDirection: 'row',
@@ -837,6 +1152,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  restCard: {
+    backgroundColor: '#f8fbff',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  restHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  restTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  restValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  removeRestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  removeRestText: {
+    color: '#dc2626',
+    fontWeight: '600',
+  },
+  insertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  insertDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#cbd5f5',
+  },
+  insertButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  insertMenu: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
+    paddingVertical: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  insertMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  insertMenuText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1d4ed8',
   },
   footer: {
     position: 'absolute',
@@ -974,17 +1375,6 @@ const styles = StyleSheet.create({
   },
   removeMediaText: {
     color: '#dc2626',
-    fontWeight: '600',
-  },
-  addNextStepButton: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
-  },
-  addNextStepText: {
-    color: '#2563eb',
     fontWeight: '600',
   },
   modalFooter: {

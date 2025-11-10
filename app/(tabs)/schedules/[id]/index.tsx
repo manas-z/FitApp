@@ -43,13 +43,7 @@ export default function EditScheduleScreen() {
 
   const { data: schedule, isLoading } = useDoc<Schedule>(path);
 
-  const {
-    control,
-    handleSubmit,
-    setValue,
-    reset,
-    watch,
-  } = useForm<ScheduleFormValues>({
+  const { control, handleSubmit, setValue, reset, watch } = useForm<ScheduleFormValues>({
     defaultValues: {
       title: '',
       description: '',
@@ -59,7 +53,7 @@ export default function EditScheduleScreen() {
     },
   });
 
-  const { fields, append, remove, move } = useFieldArray({ control, name: 'steps' });
+  const { fields, append, remove, move, insert } = useFieldArray({ control, name: 'steps' });
 
   const [uploadingStepIndex, setUploadingStepIndex] = React.useState<number | null>(
     null,
@@ -81,9 +75,11 @@ export default function EditScheduleScreen() {
       schedule.steps?.map((step) => ({
         id: step.id || makeStepId(),
         name: step.name ?? '',
-        duration: String(step.duration ?? 0),
-        restDuration: String(step.restDuration ?? 0),
-        instruction: step.instruction ?? '',
+        duration: Math.max(0, step.duration ?? 0),
+        restDuration: Math.max(0, step.restDuration ?? 0),
+        sprintCount: Math.max(1, step.sprintCount ?? 1),
+        countdownVoice: Math.max(0, step.countdownVoice ?? 5),
+        muteBackground: step.muteBackground ?? false,
         media: step.media,
       })) ?? [createEmptyStep()];
 
@@ -96,14 +92,24 @@ export default function EditScheduleScreen() {
     });
   }, [schedule, reset, router, user]);
 
-  const handleAddStep = () => {
-    append(createEmptyStep());
+  const focusStep = (index: number) => {
     setTimeout(() => {
       const steps = watch('steps') ?? [];
-      if (steps.length > 0) {
-        setEditingStepIndex(steps.length - 1);
+      if (index >= 0 && index < steps.length) {
+        setEditingStepIndex(index);
       }
     }, 0);
+  };
+
+  const handleAddStep = () => {
+    const nextIndex = fields.length;
+    append(createEmptyStep());
+    focusStep(nextIndex);
+  };
+
+  const handleInsertStep = (index: number) => {
+    insert(index, createEmptyStep());
+    focusStep(index);
   };
 
   const handleRemoveStep = (index: number) => {
@@ -215,25 +221,31 @@ export default function EditScheduleScreen() {
     try {
       setIsSaving(true);
       const steps: ScheduleStep[] = values.steps.map((step) => {
-        const duration = Number(step.duration) || 0;
-        const restDuration = Number(step.restDuration) || 0;
         const mapped: ScheduleStep = {
           id: step.id || makeStepId(),
           name: step.name.trim() || 'Step',
-          duration,
-          restDuration,
+          duration: Math.max(0, Math.round(step.duration ?? 0)),
         };
+        const restDuration = Math.max(0, Math.round(step.restDuration ?? 0));
+        if (restDuration > 0) {
+          mapped.restDuration = restDuration;
+        }
         if (step.media?.url) {
           mapped.media = step.media;
         }
-        if (step.instruction?.trim()) {
-          mapped.instruction = step.instruction.trim();
+        if (step.sprintCount && step.sprintCount > 0) {
+          mapped.sprintCount = Math.round(step.sprintCount);
         }
+        if (step.countdownVoice && step.countdownVoice > 0) {
+          mapped.countdownVoice = Math.round(step.countdownVoice);
+        }
+        mapped.muteBackground = step.muteBackground ?? false;
         return mapped;
       });
 
       const totalDuration = steps.reduce(
-        (sum, step) => sum + (step.duration || 0) + (step.restDuration || 0),
+        (sum, step) =>
+          sum + (step.duration || 0) + (step.restDuration ? step.restDuration : 0),
         0,
       );
 
@@ -324,6 +336,7 @@ export default function EditScheduleScreen() {
         watch={watch}
         fields={fields}
         onAddStep={handleAddStep}
+        onInsertStep={handleInsertStep}
         onRemoveStep={handleRemoveStep}
         onReorderSteps={handleReorderSteps}
         onSubmit={submitHandler}
@@ -333,6 +346,7 @@ export default function EditScheduleScreen() {
         onRemoveStepMedia={handleRemoveStepMedia}
         editingStepIndex={editingStepIndex}
         setEditingStepIndex={setEditingStepIndex}
+        setValue={setValue}
         uploadingMusic={uploadingMusic}
         onPickMusic={handlePickMusic}
         onRemoveMusic={handleRemoveMusic}

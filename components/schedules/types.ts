@@ -3,9 +3,11 @@ import type { ScheduleMusic, ScheduleStepMedia } from '../../src/lib/types';
 export type StepForm = {
   id: string;
   name: string;
-  duration: string;
-  restDuration: string;
-  instruction?: string;
+  duration: number;
+  restDuration: number;
+  sprintCount: number;
+  countdownVoice: number;
+  muteBackground: boolean;
   media?: ScheduleStepMedia;
 };
 

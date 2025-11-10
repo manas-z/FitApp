@@ -27,6 +27,7 @@ export interface Schedule {
   userId: string;
   title: string;
   description?: string;
+  frequency?: string | null;
   steps: ScheduleStep[];
   totalDuration: number; // seconds
   music?: ScheduleMusic | null;

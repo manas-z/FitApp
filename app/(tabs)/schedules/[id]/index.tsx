@@ -18,9 +18,9 @@ import {
 import { useFirebase, useUser, useDoc } from '../../../../src/firebase';
 import { uploadToCloudinary } from '../../../../src/lib/cloudinary';
 import type { Schedule, ScheduleStep } from '../../../../src/lib/types';
-import ScheduleBuilder from '../components/ScheduleBuilder';
-import type { ScheduleFormValues } from '../types';
-import { createEmptyStep, makeStepId } from '../utils';
+import ScheduleBuilder from '../../../../components/schedules/ScheduleBuilder';
+import type { ScheduleFormValues } from '../../../../components/schedules/types';
+import { createEmptyStep, makeStepId } from '../../../../components/schedules/utils';
 
 function inferMediaType(mimeType?: string | null) {
   if (!mimeType) return 'image';

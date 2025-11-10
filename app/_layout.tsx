@@ -1,6 +1,7 @@
 // app/_layout.tsx
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Slot, Redirect, useSegments } from 'expo-router';
 import { initializeFirebase } from '../src/firebase';
 import { FirebaseProvider, useUser } from '../src/firebase';
@@ -41,10 +42,12 @@ export default function RootLayout() {
   const { firebaseApp, auth, firestore } = initializeFirebase();
 
   return (
-    <FirebaseProvider firebaseApp={firebaseApp} auth={auth} firestore={firestore}>
-      <AuthGate>
-        <Slot />
-      </AuthGate>
-    </FirebaseProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <FirebaseProvider firebaseApp={firebaseApp} auth={auth} firestore={firestore}>
+        <AuthGate>
+          <Slot />
+        </AuthGate>
+      </FirebaseProvider>
+    </GestureHandlerRootView>
   );
 }

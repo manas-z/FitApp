@@ -244,29 +244,43 @@ const DurationPicker: React.FC<DurationPickerProps> = ({
     }
   }, [secondsForMinute, selectedSecond, selectedMinute, valueSet, onChange]);
 
-  const handleMinuteChange = (nextMinute: number) => {
-    setSelectedMinute(nextMinute);
-    const seconds = buckets.get(nextMinute) ?? [];
-    const nextSecond = seconds.includes(selectedSecond) ? selectedSecond : seconds[0] ?? 0;
-    const total = nextMinute * 60 + nextSecond;
+  const handleMinuteChange = (nextMinute: number | string) => {
+    const coercedMinute =
+      typeof nextMinute === 'string' ? Math.max(0, Number.parseInt(nextMinute, 10) || 0) : nextMinute;
+    setSelectedMinute(coercedMinute);
+    const seconds = buckets.get(coercedMinute) ?? [];
+    const coercedSelectedSecond =
+      typeof selectedSecond === 'string'
+        ? Math.max(0, Number.parseInt(selectedSecond, 10) || 0)
+        : selectedSecond;
+    const nextSecond = seconds.includes(coercedSelectedSecond)
+      ? coercedSelectedSecond
+      : seconds[0] ?? 0;
+    const total = coercedMinute * 60 + nextSecond;
     if (valueSet.has(total)) {
       onChange(total);
     } else if (seconds.length) {
-      onChange(nextMinute * 60 + seconds[0]);
+      onChange(coercedMinute * 60 + seconds[0]);
     } else {
       onChange(allowedValues[0]);
     }
   };
 
-  const handleSecondChange = (nextSecond: number) => {
-    setSelectedSecond(nextSecond);
-    const total = selectedMinute * 60 + nextSecond;
+  const handleSecondChange = (nextSecond: number | string) => {
+    const coercedSecond =
+      typeof nextSecond === 'string' ? Math.max(0, Number.parseInt(nextSecond, 10) || 0) : nextSecond;
+    setSelectedSecond(coercedSecond);
+    const coercedMinute =
+      typeof selectedMinute === 'string'
+        ? Math.max(0, Number.parseInt(selectedMinute, 10) || 0)
+        : selectedMinute;
+    const total = coercedMinute * 60 + coercedSecond;
     if (valueSet.has(total)) {
       onChange(total);
     } else {
-      const seconds = buckets.get(selectedMinute) ?? [];
+      const seconds = buckets.get(coercedMinute) ?? [];
       if (seconds.length) {
-        onChange(selectedMinute * 60 + seconds[0]);
+        onChange(coercedMinute * 60 + seconds[0]);
       }
     }
   };

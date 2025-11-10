@@ -325,13 +325,6 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
 }) => {
   const step = useWatch({ control, name: `steps.${stepIndex}` });
   const insets = useSafeAreaInsets();
-
-  if (!visible || !step) {
-    return null;
-  }
-
-  const media = step.media;
-  const durationLabel = formatSecondsToClock(step.duration ?? 0);
   const footerPadding = Math.max(insets.bottom, 16);
   const contentPadding = React.useMemo(
     () => [styles.modalContent, { paddingBottom: footerPadding + 72 }],
@@ -341,6 +334,12 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
     () => [styles.modalFooter, { paddingBottom: footerPadding }],
     [footerPadding],
   );
+  const durationLabel = formatSecondsToClock(step?.duration ?? 0);
+  const media = step?.media;
+
+  if (!visible || !step) {
+    return null;
+  }
 
   return (
     <Modal

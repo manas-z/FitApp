@@ -31,3 +31,28 @@ declare module 'react-native-draggable-flatlist' {
 
   export default class DraggableFlatList<TItem> extends React.Component<DraggableFlatListProps<TItem>> {}
 }
+
+declare module '@react-native-picker/picker' {
+  import * as React from 'react';
+
+  export type PickerItemProps = {
+    label: string;
+    value: any;
+    color?: string;
+  };
+
+  export type PickerProps<T> = React.PropsWithChildren<{
+    selectedValue?: T;
+    onValueChange?: (itemValue: T, itemIndex: number) => void;
+    enabled?: boolean;
+    mode?: 'dialog' | 'dropdown';
+    prompt?: string;
+    style?: any;
+    itemStyle?: any;
+    testID?: string;
+  }>;
+
+  export const Picker: React.ComponentType<PickerProps<any>> & {
+    Item: React.ComponentType<PickerItemProps>;
+  };
+}

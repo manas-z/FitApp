@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Video, ResizeMode, Audio } from 'expo-av';
+import { Video as ExpoVideo, ResizeMode, Audio } from 'expo-av';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -62,9 +62,12 @@ export default function PlayScheduleScreen() {
   const [restContext, setRestContext] = useState<
     'betweenRepeats' | 'betweenSteps' | null
   >(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
 
   const hasInitializedRef = useRef(false);
   const audioRef = useRef<Audio.Sound | null>(null);
+  const videoRef = useRef<React.ElementRef<typeof ExpoVideo> | null>(null);
 
   const steps = useMemo(() => schedule?.steps ?? [], [schedule]);
   const currentStep: ScheduleStep | undefined = steps[currentStepIndex];
@@ -146,6 +149,11 @@ export default function PlayScheduleScreen() {
     setRemainingSeconds(Math.max(steps[0]?.duration ?? 0, 0));
   }, [schedule, steps]);
 
+  useEffect(() => {
+    setIsPaused(false);
+    setIsAudioMuted(false);
+  }, [currentStepIndex, phase]);
+
   const advanceToNextStep = useCallback(() => {
     setCurrentStepIndex((prevIndex) => {
       const nextIndex = prevIndex + 1;
@@ -222,7 +230,13 @@ export default function PlayScheduleScreen() {
 ]);
 
   useEffect(() => {
-    if (!schedule || phase === 'complete' || remainingSeconds === null) return;
+    if (
+      !schedule ||
+      phase === 'complete' ||
+      remainingSeconds === null ||
+      isPaused
+    )
+      return;
 
     if (remainingSeconds <= 0) {
       handlePhaseCompletion();
@@ -237,7 +251,7 @@ export default function PlayScheduleScreen() {
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [handlePhaseCompletion, phase, remainingSeconds, schedule]);
+  }, [handlePhaseCompletion, isPaused, phase, remainingSeconds, schedule]);
 
   useEffect(() => {
     return () => {
@@ -293,6 +307,46 @@ export default function PlayScheduleScreen() {
     };
   }, [currentStep, phase]);
 
+  useEffect(() => {
+    const sound = audioRef.current;
+    if (!sound) return;
+
+    sound
+      .setIsMutedAsync(isAudioMuted)
+      .catch(() => {});
+  }, [isAudioMuted]);
+
+  useEffect(() => {
+    const sound = audioRef.current;
+    if (!sound) return;
+
+    if (phase === 'step' && !isPaused) {
+      sound.playAsync().catch(() => {});
+      return;
+    }
+
+    sound.pauseAsync().catch(() => {});
+  }, [isPaused, phase]);
+
+  useEffect(() => {
+    const player = videoRef.current;
+    if (!player || currentStep?.media?.type !== 'video') return;
+
+    if (phase === 'step' && !isPaused) {
+      player.playAsync().catch(() => {});
+      return;
+    }
+
+    player.pauseAsync().catch(() => {});
+  }, [currentStep, isPaused, phase]);
+
+  useEffect(() => {
+    const player = videoRef.current;
+    if (!player || currentStep?.media?.type !== 'video') return;
+
+    player.setIsMutedAsync(isAudioMuted).catch(() => {});
+  }, [currentStep, isAudioMuted]);
+
   const openRepeatModal = () => {
     if (!currentStep) return;
     const currentValue = repeatConfig[currentStep.id] ?? 1;
@@ -317,17 +371,19 @@ export default function PlayScheduleScreen() {
     }
   };
 
-  const renderMedia = () => {
+  const renderMedia = useCallback(() => {
     if (!currentStep?.media) {
+      videoRef.current = null;
       return (
         <View style={styles.mediaPlaceholder}>
-          <Feather name="image" size={28} color="#94a3b8" />
+          <Feather name="image" size={32} color="#94a3b8" />
           <Text style={styles.mediaPlaceholderText}>No media added</Text>
         </View>
       );
     }
 
     if (currentStep.media.type === 'image') {
+      videoRef.current = null;
       return (
         <Image
           source={{ uri: currentStep.media.url }}
@@ -339,26 +395,71 @@ export default function PlayScheduleScreen() {
 
     if (currentStep.media.type === 'video') {
       return (
-        <Video
+        <ExpoVideo
+          ref={(ref) => {
+            videoRef.current = ref;
+          }}
           source={{ uri: currentStep.media.url }}
           style={styles.mediaVideo}
           resizeMode={ResizeMode.COVER}
-          shouldPlay={phase === 'step'}
+          shouldPlay={!isPaused && phase === 'step'}
           isLooping
           useNativeControls
         />
       );
     }
 
+    videoRef.current = null;
     return (
       <View style={styles.mediaAudio}>
-        <Ionicons name="musical-notes" size={28} color="#2563eb" />
+        <Ionicons
+          name={isAudioMuted ? 'volume-mute' : 'musical-notes'}
+          size={32}
+          color="#2563eb"
+        />
         <Text style={styles.mediaAudioText}>
           {currentStep.media.hint ?? 'Audio cue'}
         </Text>
+        {isAudioMuted ? (
+          <Text style={styles.mediaAudioMuted}>Muted</Text>
+        ) : null}
       </View>
     );
-  };
+  }, [currentStep, isAudioMuted, isPaused, phase]);
+
+  const togglePause = useCallback(() => {
+    setIsPaused((prev) => !prev);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setIsAudioMuted((prev) => !prev);
+  }, []);
+
+  const skipCurrentStep = useCallback(() => {
+    if (phase !== 'step') return;
+    setIsPaused(false);
+    handlePhaseCompletion();
+  }, [handlePhaseCompletion, phase]);
+
+  const skipRestPeriod = useCallback(() => {
+    if (phase !== 'rest') return;
+    setIsPaused(false);
+    handlePhaseCompletion();
+  }, [handlePhaseCompletion, phase]);
+
+  const extendRest = useCallback(() => {
+    setRemainingSeconds((prev) => (prev === null ? 15 : prev + 15));
+  }, []);
+
+  const upcomingSteps = useMemo(
+    () => steps.slice(currentStepIndex + 1, currentStepIndex + 3),
+    [currentStepIndex, steps],
+  );
+
+  const canMuteMedia = useMemo(() => {
+    const mediaType = currentStep?.media?.type;
+    return mediaType === 'audio' || mediaType === 'video';
+  }, [currentStep]);
 
   if (isLoading) {
     return (
@@ -401,7 +502,7 @@ export default function PlayScheduleScreen() {
               style={styles.closeButton}
               onPress={() => router.replace('/(tabs)')}
             >
-              <Ionicons name="close" size={22} color="#0f172a" />
+              <Ionicons name="close" size={22} color="#111827" />
             </Pressable>
           </View>
           <View style={[styles.centered, styles.completionCard]}>
@@ -426,33 +527,25 @@ export default function PlayScheduleScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <Pressable
-            style={styles.repeatButton}
-            onPress={openRepeatModal}
-            accessibilityLabel="Change repeats for this step"
-          >
-            <Ionicons name="repeat" size={20} color="#1d4ed8" />
-            <Text style={styles.repeatText}>x{plannedRepeats}</Text>
-          </Pressable>
-          <Text style={styles.scheduleTitle} numberOfLines={1}>
-            {schedule.title}
+          <View style={styles.topBarSpacer} />
+          <Text style={styles.screenTitle} numberOfLines={1}>
+            {phase === 'rest' ? 'Rest interval' : 'Active step'}
           </Text>
           <Pressable
             style={styles.closeButton}
             onPress={() => router.replace('/(tabs)')}
             accessibilityLabel="Close player"
           >
-            <Ionicons name="close" size={22} color="#0f172a" />
+            <Ionicons name="close" size={22} color="#111827" />
           </Pressable>
         </View>
 
         <View style={styles.stageCard}>
           {phase === 'rest' ? (
             <RestStage
+              scheduleTitle={schedule.title}
               remainingSeconds={remainingSeconds ?? 0}
-              onExtend={() =>
-                setRemainingSeconds((prev) => (prev === null ? 15 : prev + 15))
-              }
+              onExtend={extendRest}
               restContext={restContext}
               nextStep={
                 restContext === 'betweenRepeats'
@@ -461,40 +554,30 @@ export default function PlayScheduleScreen() {
               }
               currentRepeatIndex={currentRepeatIndex}
               plannedRepeats={plannedRepeats}
+              onTogglePause={togglePause}
+              isPaused={isPaused}
+              onSkipRest={skipRestPeriod}
             />
           ) : (
             <ActiveStage
+              scheduleTitle={schedule.title}
               currentStep={currentStep}
               currentStepIndex={currentStepIndex}
               totalSteps={steps.length}
               remainingSeconds={remainingSeconds ?? 0}
               currentRepeatIndex={currentRepeatIndex}
               plannedRepeats={plannedRepeats}
+              upcomingSteps={upcomingSteps}
+              onTogglePause={togglePause}
+              onSkipStep={skipCurrentStep}
+              onToggleMute={toggleMute}
+              isPaused={isPaused}
+              isAudioMuted={isAudioMuted}
+              canMute={canMuteMedia}
+              onOpenRepeat={openRepeatModal}
               renderMedia={renderMedia}
             />
           )}
-        </View>
-
-        <View style={styles.queueCard}>
-          <Text style={styles.queueTitle}>Up Next</Text>
-          {steps
-            .slice(currentStepIndex + 1, currentStepIndex + 3)
-            .map((step: ScheduleStep) => (
-            <View key={step.id} style={styles.queueItem}>
-              <View style={styles.queueIndicator} />
-              <View style={styles.queueTextWrapper}>
-                <Text style={styles.queueStepName} numberOfLines={1}>
-                  {step.name || 'Step'}
-                </Text>
-                <Text style={styles.queueMeta}>
-                  {formatTime(step.duration ?? 0)}
-                </Text>
-              </View>
-            </View>
-          ))}
-          {currentStepIndex + 1 >= steps.length ? (
-            <Text style={styles.queueEmpty}>You're on the last step.</Text>
-          ) : null}
         </View>
       </View>
 
@@ -519,7 +602,7 @@ export default function PlayScheduleScreen() {
                 }
                 accessibilityLabel="Decrease repeats"
               >
-                <Ionicons name="remove" size={22} color="#0f172a" />
+                <Ionicons name="remove" size={22} color="#111827" />
               </Pressable>
               <Text style={styles.modalCount}>{pendingRepeat}</Text>
               <Pressable
@@ -547,90 +630,244 @@ export default function PlayScheduleScreen() {
 }
 
 type ActiveStageProps = {
+  scheduleTitle: string;
   currentStep: ScheduleStep | undefined;
   currentStepIndex: number;
   totalSteps: number;
   remainingSeconds: number;
   currentRepeatIndex: number;
   plannedRepeats: number;
+  upcomingSteps: ScheduleStep[];
+  onTogglePause: () => void;
+  onSkipStep: () => void;
+  onToggleMute: () => void;
+  isPaused: boolean;
+  isAudioMuted: boolean;
+  canMute: boolean;
+  onOpenRepeat: () => void;
   renderMedia: () => React.ReactNode;
 };
 
 function ActiveStage({
+  scheduleTitle,
   currentStep,
   currentStepIndex,
   totalSteps,
   remainingSeconds,
   currentRepeatIndex,
   plannedRepeats,
+  upcomingSteps,
+  onTogglePause,
+  onSkipStep,
+  onToggleMute,
+  isPaused,
+  isAudioMuted,
+  canMute,
+  onOpenRepeat,
   renderMedia,
 }: ActiveStageProps) {
+  const nextStep = upcomingSteps[0];
+  const laterStep = upcomingSteps[1];
+
   return (
     <>
-      <View style={styles.stepMetaRow}>
-        <Text style={styles.stepName} numberOfLines={1}>
-          {currentStep?.name?.trim() || 'Workout Step'}
-        </Text>
-        <Text style={styles.stepProgress}>
-          Step {currentStepIndex + 1} of {totalSteps}
-        </Text>
+      <View style={styles.stageHeaderRow}>
+        <View style={styles.stageHeaderBlock}>
+          <Text style={styles.stageHeaderLabel}>Name</Text>
+          <Text style={styles.stageHeaderValue}>{scheduleTitle}</Text>
+        </View>
+        <View style={styles.stageHeaderBlock}>
+          <Text style={styles.stageHeaderLabel}>Step</Text>
+          <Text style={styles.stageHeaderValue}>
+            {currentStepIndex + 1} / {totalSteps}
+          </Text>
+        </View>
+        <View style={styles.stageTimerBadge}>
+          <Text style={styles.stageTimerValue}>{formatTime(remainingSeconds)}</Text>
+          <Text style={styles.stageTimerSubtitle}>remaining</Text>
+        </View>
       </View>
-      <View style={styles.mediaWrapper}>{renderMedia()}</View>
-      <View style={styles.timerBlock}>
-        <Text style={styles.timerLabel}>Active Time</Text>
-        <Text style={styles.timerValue}>{formatTime(remainingSeconds)}</Text>
-        <Text style={styles.repeatCounter}>
+
+      <Text style={styles.currentStepTitle}>
+        {currentStep?.name?.trim() || 'Workout Step'}
+      </Text>
+
+      <View style={styles.mediaWrapper}>
+        {renderMedia()}
+        <Pressable
+          style={styles.skipFloatingButton}
+          onPress={onSkipStep}
+          accessibilityLabel="Skip current step"
+        >
+          <Ionicons name="play-skip-forward" size={26} color="#111827" />
+        </Pressable>
+      </View>
+
+      <View style={styles.roundInfoRow}>
+        <Text style={styles.roundInfoText}>
           Round {currentRepeatIndex} of {plannedRepeats}
         </Text>
+        <Pressable
+          style={styles.roundAdjustButton}
+          onPress={onOpenRepeat}
+          accessibilityLabel="Adjust repeats for this step"
+        >
+          <Ionicons name="repeat" size={16} color="#1d4ed8" />
+          <Text style={styles.roundAdjustText}>Change</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.controlRow}>
+        <Pressable
+          style={styles.controlButton}
+          onPress={onTogglePause}
+          accessibilityLabel={isPaused ? 'Resume timer' : 'Pause timer'}
+        >
+          <View
+            style={[
+              styles.controlIconWrap,
+              isPaused && styles.controlIconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={isPaused ? 'play' : 'pause'}
+              size={20}
+              color={isPaused ? '#ffffff' : '#111827'}
+            />
+          </View>
+          <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+        </Pressable>
+        <Pressable
+          style={styles.controlButton}
+          onPress={onSkipStep}
+          accessibilityLabel="Skip to next step"
+        >
+          <View style={styles.controlIconWrap}>
+            <Ionicons name="play-skip-forward" size={20} color="#111827" />
+          </View>
+          <Text style={styles.controlButtonText}>Skip</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.controlButton, !canMute && styles.controlButtonDisabled]}
+          onPress={onToggleMute}
+          disabled={!canMute}
+          accessibilityLabel={
+            isAudioMuted ? 'Unmute step audio' : 'Mute step audio'
+          }
+        >
+          <View
+            style={[
+              styles.controlIconWrap,
+              isAudioMuted && styles.controlIconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={isAudioMuted ? 'volume-mute' : 'volume-high'}
+              size={20}
+              color={
+                isAudioMuted ? '#ffffff' : canMute ? '#111827' : '#94a3b8'
+              }
+            />
+          </View>
+          <Text
+            style={[
+              styles.controlButtonText,
+              !canMute && styles.controlButtonTextDisabled,
+            ]}
+          >
+            {isAudioMuted ? 'Muted' : 'Mute'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.upcomingSection}>
+        <Text style={styles.upNextHeading}>Up next</Text>
+        {nextStep ? (
+          <View style={styles.upNextCard}>
+            <View style={styles.upNextContext}>
+              <Text style={styles.upNextTitle}>
+                {nextStep.name?.trim() || 'Next step'}
+              </Text>
+              <Text style={styles.upNextMeta}>
+                {formatTime(nextStep.duration ?? 0)} · Step {currentStepIndex + 2}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#4b5563" />
+          </View>
+        ) : (
+          <Text style={styles.upcomingEmpty}>
+            You're on the final step of this schedule.
+          </Text>
+        )}
+        {laterStep ? (
+          <Text style={styles.upcomingLater}>
+            Following: {laterStep.name?.trim() || 'Upcoming step'} ·{' '}
+            {formatTime(laterStep.duration ?? 0)}
+          </Text>
+        ) : null}
       </View>
     </>
   );
 }
 
 type RestStageProps = {
+  scheduleTitle: string;
   remainingSeconds: number;
   onExtend: () => void;
   restContext: 'betweenRepeats' | 'betweenSteps' | null;
   nextStep: ScheduleStep | undefined;
   currentRepeatIndex: number;
   plannedRepeats: number;
+  onTogglePause: () => void;
+  isPaused: boolean;
+  onSkipRest: () => void;
 };
 
 function RestStage({
+  scheduleTitle,
   remainingSeconds,
   onExtend,
   restContext,
   nextStep,
   currentRepeatIndex,
   plannedRepeats,
+  onTogglePause,
+  isPaused,
+  onSkipRest,
 }: RestStageProps) {
   const isBetweenRepeats = restContext === 'betweenRepeats';
   const nextRepeatIndex = Math.min(plannedRepeats, currentRepeatIndex + 1);
 
   return (
     <>
-      <View style={styles.stepMetaRow}>
-        <Text style={styles.stepName} numberOfLines={1}>
-          Rest
-        </Text>
-        <Text style={styles.stepProgress}>
-          {isBetweenRepeats ? 'Between repeats' : 'Between steps'}
-        </Text>
+      <View style={styles.stageHeaderRow}>
+        <View style={styles.stageHeaderBlock}>
+          <Text style={styles.stageHeaderLabel}>Name</Text>
+          <Text style={styles.stageHeaderValue}>{scheduleTitle}</Text>
+        </View>
+        <View style={styles.stageHeaderBlock}>
+          <Text style={styles.stageHeaderLabel}>Context</Text>
+          <Text style={styles.stageHeaderValue}>
+            {isBetweenRepeats ? 'Between rounds' : 'Between steps'}
+          </Text>
+        </View>
+        <View style={styles.stageTimerBadge}>
+          <Text style={styles.stageTimerValue}>{formatTime(remainingSeconds)}</Text>
+          <Text style={styles.stageTimerSubtitle}>remaining</Text>
+        </View>
       </View>
-      <View style={styles.restStageBody}>
-        <Ionicons name="pause" size={40} color="#2563eb" />
-        <Text style={styles.restStageTitle}>Catch your breath</Text>
+
+      <View style={styles.restMainDisplay}>
+        <Text style={styles.restTitle}>Rest</Text>
+        <Text style={styles.restTimerLarge}>{Math.max(remainingSeconds, 0)}</Text>
+        <Text style={styles.restTimerCaption}>seconds remaining</Text>
         <Text style={styles.restStageMessage}>
           {isBetweenRepeats
-            ? `Next round starts soon (Round ${nextRepeatIndex} of ${plannedRepeats}).`
+            ? `Next round ${nextRepeatIndex} of ${plannedRepeats}`
             : nextStep
-              ? `Up next: ${nextStep.name?.trim() || 'Next step'}.`
-              : 'Great work! This is your final rest.'}
+              ? `Up next: ${nextStep.name?.trim() || 'Next step'}`
+              : 'Great work! This is your final rest interval.'}
         </Text>
-      </View>
-      <View style={styles.timerBlock}>
-        <Text style={styles.timerLabel}>Rest Time</Text>
-        <Text style={styles.timerValue}>{formatTime(remainingSeconds)}</Text>
         <Pressable
           style={styles.extendButton}
           onPress={onExtend}
@@ -639,13 +876,58 @@ function RestStage({
           <Text style={styles.extendButtonText}>+ 15 sec</Text>
         </Pressable>
       </View>
+
+      <View style={styles.restFooterRow}>
+        <Pressable
+          style={styles.restControlButton}
+          onPress={onTogglePause}
+          accessibilityLabel={
+            isPaused ? 'Resume rest timer' : 'Pause rest timer'
+          }
+        >
+          <Ionicons
+            name={isPaused ? 'play' : 'pause'}
+            size={18}
+            color={isPaused ? '#ffffff' : '#111827'}
+          />
+          <Text style={styles.restControlText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+        </Pressable>
+        <View style={styles.restNextBlock}>
+          <Text style={styles.restNextLabel}>Next</Text>
+          <Text style={styles.restNextValue}>
+            {isBetweenRepeats
+              ? `Round ${nextRepeatIndex}`
+              : nextStep?.name?.trim() || 'Final step'}
+          </Text>
+          <Text style={styles.restNextMeta}>
+            {isBetweenRepeats
+              ? `of ${plannedRepeats}`
+              : nextStep
+                ? formatTime(nextStep.duration ?? 0)
+                : 'Schedule complete'}
+          </Text>
+        </View>
+        <Pressable
+          style={styles.skipRestButton}
+          onPress={onSkipRest}
+          accessibilityLabel="Skip rest"
+        >
+          <Text style={styles.skipRestText}>Skip rest</Text>
+        </Pressable>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#d7ecf7' },
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
+  safeArea: { flex: 1, backgroundColor: '#f4f5f7' },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 16,
+  },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -656,84 +938,98 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 8,
   },
-  topBarSpacer: { width: 80 },
-  repeatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#e0f2ff',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minWidth: 80,
-    justifyContent: 'center',
-  },
-  repeatText: { fontSize: 16, fontWeight: '600', color: '#1d4ed8' },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
+  topBarSpacer: { width: 48 },
+  screenTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   scheduleTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#111827',
     paddingHorizontal: 12,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   stageCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+    gap: 16,
   },
-  stepMetaRow: {
+  stageHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 16,
   },
-  stepName: { fontSize: 18, fontWeight: '700', color: '#0f172a', flex: 1 },
-  stepProgress: { fontSize: 14, color: '#475569', marginLeft: 12 },
-  mediaWrapper: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: '#e2e8f0',
-    height: 240,
-    marginBottom: 20,
-    justifyContent: 'center',
+  stageHeaderBlock: { flex: 1, gap: 4 },
+  stageHeaderLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  stageHeaderValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    lineHeight: 18,
+    flexWrap: 'wrap',
+    flexShrink: 1,
+  },
+  stageTimerBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: '#eef2ff',
     alignItems: 'center',
+    minWidth: 88,
+    gap: 2,
   },
-  restStageBody: {
-    height: 240,
-    borderRadius: 18,
-    backgroundColor: '#e0f2ff',
-    marginBottom: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 10,
+  stageTimerValue: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  stageTimerSubtitle: {
+    fontSize: 11,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  restStageTitle: {
+  currentStepTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#111827',
+    lineHeight: 24,
   },
-  restStageMessage: {
-    fontSize: 14,
-    color: '#475569',
-    textAlign: 'center',
+  mediaWrapper: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#e5e7eb',
+    height: 300,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
   mediaPlaceholder: {
     flex: 1,
@@ -741,7 +1037,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  mediaPlaceholderText: { fontSize: 14, color: '#64748b' },
+  mediaPlaceholderText: { fontSize: 14, color: '#6b7280' },
   mediaImage: { width: '100%', height: '100%' },
   mediaVideo: { width: '100%', height: '100%', backgroundColor: '#000' },
   mediaAudio: {
@@ -750,47 +1046,178 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 24,
   },
-  mediaAudioText: { fontSize: 15, fontWeight: '600', color: '#2563eb' },
-  timerBlock: { alignItems: 'center' },
-  timerLabel: { fontSize: 14, color: '#475569', marginBottom: 4 },
-  timerValue: { fontSize: 48, fontWeight: '700', color: '#0f172a', marginBottom: 6 },
-  repeatCounter: { fontSize: 14, fontWeight: '500', color: '#1d4ed8' },
-  extendButton: {
-    marginTop: 8,
-    backgroundColor: '#22c55e',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+  mediaAudioText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    textAlign: 'center',
   },
-  extendButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
-  queueCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+  mediaAudioMuted: { fontSize: 12, color: '#6b7280' },
+  skipFloatingButton: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  queueTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 12 },
-  queueItem: {
+  roundInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+  },
+  roundInfoText: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  roundAdjustButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#e0f2ff',
+  },
+  roundAdjustText: { fontSize: 12, fontWeight: '600', color: '#1d4ed8' },
+  controlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  controlButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  controlButtonDisabled: { opacity: 0.5 },
+  controlIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  controlIconWrapActive: { backgroundColor: '#1d4ed8' },
+  controlButtonText: { fontSize: 12, fontWeight: '600', color: '#111827' },
+  controlButtonTextDisabled: { color: '#94a3b8' },
+  upcomingSection: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  upNextHeading: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  upNextCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  upNextContext: { flex: 1, marginRight: 12 },
+  upNextTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
+  upNextMeta: { fontSize: 12, color: '#6b7280', marginTop: 4 },
+  upcomingEmpty: { fontSize: 13, color: '#6b7280' },
+  upcomingLater: { fontSize: 12, color: '#6b7280' },
+  restMainDisplay: {
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#eef2ff',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  restTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  restTimerLarge: { fontSize: 60, fontWeight: '700', color: '#111827' },
+  restTimerCaption: { fontSize: 13, color: '#4b5563' },
+  restStageMessage: {
+    fontSize: 13,
+    color: '#4b5563',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  extendButton: {
+    marginTop: 8,
+    backgroundColor: '#1d4ed8',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+  },
+  extendButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 13 },
+  restFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  queueIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  restControlButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
     backgroundColor: '#1d4ed8',
   },
-  queueTextWrapper: { flex: 1 },
-  queueStepName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
-  queueMeta: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  queueEmpty: { fontSize: 13, color: '#64748b' },
+  restControlText: { fontSize: 12, fontWeight: '600', color: '#ffffff' },
+  restNextBlock: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    gap: 4,
+  },
+  restNextLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  restNextValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  restNextMeta: { fontSize: 12, color: '#6b7280' },
+  skipRestButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+  },
+  skipRestText: { fontSize: 12, fontWeight: '600', color: '#1d4ed8' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
@@ -802,12 +1229,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 340,
     backgroundColor: '#ffffff',
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     gap: 16,
   },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
-  modalSubtitle: { fontSize: 14, color: '#475569' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  modalSubtitle: { fontSize: 13, color: '#4b5563' },
   modalControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -815,9 +1242,9 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   modalControlButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -828,9 +1255,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
   },
   modalCount: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#111827',
     minWidth: 40,
     textAlign: 'center',
   },
@@ -843,9 +1270,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#e5e7eb',
   },
-  modalCancelText: { color: '#0f172a', fontWeight: '600' },
+  modalCancelText: { color: '#111827', fontWeight: '600' },
   modalConfirm: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -861,10 +1288,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   primaryButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-  errorTitle: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginTop: 16 },
+  errorTitle: { fontSize: 22, fontWeight: '700', color: '#111827', marginTop: 16 },
   errorMessage: {
     fontSize: 14,
-    color: '#475569',
+    color: '#4b5563',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -876,7 +1303,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     gap: 12,
   },
-  completionTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a' },
-  completionMessage: { fontSize: 14, color: '#475569', textAlign: 'center' },
+  completionTitle: { fontSize: 24, fontWeight: '700', color: '#111827' },
+  completionMessage: { fontSize: 14, color: '#4b5563', textAlign: 'center' },
   completionButton: { marginTop: 12 },
 });

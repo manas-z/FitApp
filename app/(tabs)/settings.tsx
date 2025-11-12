@@ -17,6 +17,7 @@ import {
   REST_DURATION_STORAGE_KEY,
   DEFAULT_REST_DURATION_SECONDS,
 } from '../../constants/settings';
+import { palette, radii, spacing, typography } from '../../constants/theme';
 
 const VOICES = ['Male Voice 1', 'Female Voice 1', 'Neutral Voice'];
 
@@ -82,7 +83,7 @@ export default function SettingsScreen() {
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="play-circle" size={22} color="#2563eb" />
+            <Ionicons name="play-circle" size={22} color={palette.primary} />
             <Text style={styles.cardTitle}>Workout Player</Text>
           </View>
           <Text style={styles.cardDescription}>
@@ -97,9 +98,9 @@ export default function SettingsScreen() {
                 minimumValue={10}
                 maximumValue={120}
                 step={5}
-                minimumTrackTintColor="#2563eb"
-                maximumTrackTintColor="#cbd5f5"
-                thumbTintColor="#2563eb"
+                minimumTrackTintColor={palette.primary}
+                maximumTrackTintColor={palette.primaryMuted}
+                thumbTintColor={palette.primary}
                 value={restDuration}
                 onValueChange={(value) => setRestDuration(Math.round(value))}
                 onSlidingComplete={(value) => {
@@ -123,8 +124,11 @@ export default function SettingsScreen() {
               accessibilityLabel="Toggle countdown timer"
               value={countdownEnabled}
               onValueChange={setCountdownEnabled}
-              thumbColor={countdownEnabled ? '#2563eb' : '#ffffff'}
-              trackColor={{ false: '#dbeafe', true: '#bfdbfe' }}
+              thumbColor={countdownEnabled ? palette.primary : palette.surface}
+              trackColor={{
+                false: palette.surfaceMuted,
+                true: palette.primaryMuted,
+              }}
             />
           </View>
 
@@ -145,7 +149,7 @@ export default function SettingsScreen() {
               <Ionicons
                 name={isVoiceMenuOpen ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#1f2937"
+                color={palette.textPrimary}
                 style={styles.dropdownIcon}
               />
             </Pressable>
@@ -177,7 +181,7 @@ export default function SettingsScreen() {
                         <Ionicons
                           name="checkmark"
                           size={16}
-                          color="#2563eb"
+                          color={palette.primary}
                           style={styles.dropdownIcon}
                         />
                       ) : null}
@@ -191,7 +195,7 @@ export default function SettingsScreen() {
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="options" size={20} color="#2563eb" />
+            <Ionicons name="options" size={20} color={palette.primary} />
             <Text style={styles.cardTitle}>Defaults</Text>
           </View>
           <Text style={styles.cardDescription}>
@@ -206,9 +210,9 @@ export default function SettingsScreen() {
                 minimumValue={1}
                 maximumValue={10}
                 step={1}
-                minimumTrackTintColor="#2563eb"
-                maximumTrackTintColor="#cbd5f5"
-                thumbTintColor="#2563eb"
+                minimumTrackTintColor={palette.primary}
+                maximumTrackTintColor={palette.primaryMuted}
+                thumbTintColor={palette.primary}
                 value={defaultSprints}
                 onValueChange={(value) => setDefaultSprints(Math.round(value))}
               />
@@ -236,77 +240,81 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#d9f3ff',
+    backgroundColor: palette.background,
   },
   container: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   heading: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 4,
+    fontWeight: typography.headingFontWeight,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
+    letterSpacing: 0.2,
   },
   subheading: {
     fontSize: 16,
-    color: '#475569',
-    marginBottom: 16,
+    color: palette.textSecondary,
+    marginBottom: spacing.xl,
+    lineHeight: 22,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    marginBottom: 20,
+    backgroundColor: palette.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   cardTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0f172a',
-    marginLeft: 10,
+    color: palette.textPrimary,
+    marginLeft: spacing.sm,
   },
   cardDescription: {
     fontSize: 15,
-    color: '#475569',
-    lineHeight: 20,
-    marginBottom: 16,
+    color: palette.textSecondary,
+    lineHeight: 22,
+    marginBottom: spacing.lg,
   },
   settingGroup: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   lastSettingGroup: {
     marginBottom: 0,
   },
   settingLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 6,
+    fontWeight: typography.labelFontWeight,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
   },
   settingHint: {
     fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 18,
+    color: palette.textMuted,
+    lineHeight: 20,
   },
   sliderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   slider: {
     flex: 1,
@@ -314,10 +322,10 @@ const styles = StyleSheet.create({
   sliderValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1d4ed8',
-    minWidth: 48,
+    color: palette.primary,
+    minWidth: 52,
     textAlign: 'right',
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -326,82 +334,88 @@ const styles = StyleSheet.create({
   },
   toggleTextWrapper: {
     flex: 1,
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   dropdown: {
-    marginTop: 4,
+    marginTop: spacing.xs,
     borderWidth: 1,
-    borderColor: '#dbeafe',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#f8fbff',
+    borderColor: palette.border,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: palette.surfaceMuted,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   dropdownActive: {
-    borderColor: '#93c5fd',
+    borderColor: palette.primary,
   },
   dropdownPressed: {
-    backgroundColor: '#eef2ff',
+    backgroundColor: palette.surfaceElevated,
   },
   dropdownText: {
     fontSize: 15,
-    color: '#111827',
-    fontWeight: '600',
+    color: palette.textPrimary,
+    fontWeight: typography.labelFontWeight,
   },
   dropdownIcon: {
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   dropdownMenu: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
+    borderColor: palette.border,
+    borderRadius: radii.md,
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   dropdownOptionSelected: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: palette.primaryMuted,
   },
   dropdownOptionPressed: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: palette.surfaceMuted,
   },
   dropdownOptionText: {
     fontSize: 15,
-    color: '#111827',
+    color: palette.textPrimary,
   },
   dropdownOptionTextSelected: {
     fontWeight: '700',
-    color: '#1d4ed8',
+    color: palette.primary,
   },
   saveButton: {
-    marginTop: 8,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
-    backgroundColor: '#fde047',
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    borderRadius: 14,
-    shadowColor: '#facc15',
-    shadowOpacity: 0.4,
+    backgroundColor: palette.accent,
+    paddingHorizontal: spacing.xl + spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.22,
     shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 16,
+    shadowRadius: 18,
     elevation: 5,
   },
   saveButtonPressed: {
-    backgroundColor: '#facc15',
+    backgroundColor: palette.accentMuted,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1f2937',
+    color: palette.surface,
+    letterSpacing: 0.3,
   },
 });

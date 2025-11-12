@@ -21,6 +21,7 @@ import type { Schedule, ScheduleStep } from '../../../../src/lib/types';
 import ScheduleBuilder from '../../../../components/schedules/ScheduleBuilder';
 import type { ScheduleFormValues } from '../../../../components/schedules/types';
 import { createEmptyStep, makeStepId } from '../../../../components/schedules/utils';
+import { palette } from '../../../../constants/theme';
 
 function inferMediaType(mimeType?: string | null) {
   if (!mimeType) return 'image';
@@ -367,10 +368,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e0f2ff',
+    backgroundColor: palette.background,
   },
   emptyText: {
-    color: '#0f172a',
+    color: palette.textPrimary,
     fontSize: 16,
     fontWeight: '600',
   },

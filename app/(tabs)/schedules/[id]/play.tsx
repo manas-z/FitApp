@@ -28,6 +28,7 @@ import {
   DEFAULT_REST_DURATION_SECONDS,
   REST_DURATION_STORAGE_KEY,
 } from '../../../../constants/settings';
+import { palette } from '../../../../constants/theme';
 
 function formatTime(seconds: number) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -376,7 +377,7 @@ export default function PlayScheduleScreen() {
       videoRef.current = null;
       return (
         <View style={styles.mediaPlaceholder}>
-          <Feather name="image" size={32} color="#94a3b8" />
+          <Feather name="image" size={32} color={palette.textMuted} />
           <Text style={styles.mediaPlaceholderText}>No media added</Text>
         </View>
       );
@@ -415,7 +416,7 @@ export default function PlayScheduleScreen() {
         <Ionicons
           name={isAudioMuted ? 'volume-mute' : 'musical-notes'}
           size={32}
-          color="#2563eb"
+          color={palette.primary}
         />
         <Text style={styles.mediaAudioText}>
           {currentStep.media.hint ?? 'Audio cue'}
@@ -465,7 +466,7 @@ export default function PlayScheduleScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={palette.primary} />
         </View>
       </SafeAreaView>
     );
@@ -475,7 +476,7 @@ export default function PlayScheduleScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <Ionicons name="warning" size={48} color="#f97316" />
+          <Ionicons name="warning" size={48} color={palette.warning} />
           <Text style={styles.errorTitle}>Schedule not found</Text>
           <Text style={styles.errorMessage}>
             We couldn't load this schedule. It may have been deleted.
@@ -502,11 +503,11 @@ export default function PlayScheduleScreen() {
               style={styles.closeButton}
               onPress={() => router.replace('/(tabs)')}
             >
-              <Ionicons name="close" size={22} color="#111827" />
+              <Ionicons name="close" size={22} color={palette.textPrimary} />
             </Pressable>
           </View>
           <View style={[styles.centered, styles.completionCard]}>
-            <Ionicons name="checkmark-circle" size={72} color="#22c55e" />
+            <Ionicons name="checkmark-circle" size={72} color={palette.success} />
             <Text style={styles.completionTitle}>All done!</Text>
             <Text style={styles.completionMessage}>
               Great job completing your schedule.
@@ -536,7 +537,7 @@ export default function PlayScheduleScreen() {
             onPress={() => router.replace('/(tabs)')}
             accessibilityLabel="Close player"
           >
-            <Ionicons name="close" size={22} color="#111827" />
+            <Ionicons name="close" size={22} color={palette.textPrimary} />
           </Pressable>
         </View>
 
@@ -602,7 +603,7 @@ export default function PlayScheduleScreen() {
                 }
                 accessibilityLabel="Decrease repeats"
               >
-                <Ionicons name="remove" size={22} color="#111827" />
+                <Ionicons name="remove" size={22} color={palette.textPrimary} />
               </Pressable>
               <Text style={styles.modalCount}>{pendingRepeat}</Text>
               <Pressable
@@ -610,7 +611,7 @@ export default function PlayScheduleScreen() {
                 onPress={() => setPendingRepeat((prev) => prev + 1)}
                 accessibilityLabel="Increase repeats"
               >
-                <Ionicons name="add" size={22} color="#ffffff" />
+                <Ionicons name="add" size={22} color={palette.surface} />
               </Pressable>
             </View>
             <View style={styles.modalActions}>
@@ -699,7 +700,7 @@ function ActiveStage({
           onPress={onSkipStep}
           accessibilityLabel="Skip current step"
         >
-          <Ionicons name="play-skip-forward" size={26} color="#111827" />
+          <Ionicons name="play-skip-forward" size={26} color={palette.textPrimary} />
         </Pressable>
       </View>
 
@@ -712,7 +713,7 @@ function ActiveStage({
           onPress={onOpenRepeat}
           accessibilityLabel="Adjust repeats for this step"
         >
-          <Ionicons name="repeat" size={16} color="#1d4ed8" />
+          <Ionicons name="repeat" size={16} color={palette.primary} />
           <Text style={styles.roundAdjustText}>Change</Text>
         </Pressable>
       </View>
@@ -732,7 +733,7 @@ function ActiveStage({
             <Ionicons
               name={isPaused ? 'play' : 'pause'}
               size={20}
-              color={isPaused ? '#ffffff' : '#111827'}
+              color={isPaused ? palette.surface : palette.textPrimary}
             />
           </View>
           <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
@@ -743,7 +744,7 @@ function ActiveStage({
           accessibilityLabel="Skip to next step"
         >
           <View style={styles.controlIconWrap}>
-            <Ionicons name="play-skip-forward" size={20} color="#111827" />
+            <Ionicons name="play-skip-forward" size={20} color={palette.textPrimary} />
           </View>
           <Text style={styles.controlButtonText}>Skip</Text>
         </Pressable>
@@ -765,7 +766,7 @@ function ActiveStage({
               name={isAudioMuted ? 'volume-mute' : 'volume-high'}
               size={20}
               color={
-                isAudioMuted ? '#ffffff' : canMute ? '#111827' : '#94a3b8'
+                isAudioMuted ? palette.surface : canMute ? palette.textPrimary : palette.textMuted
               }
             />
           </View>
@@ -792,7 +793,7 @@ function ActiveStage({
                 {formatTime(nextStep.duration ?? 0)} · Step {currentStepIndex + 2}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#4b5563" />
+            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
           </View>
         ) : (
           <Text style={styles.upcomingEmpty}>
@@ -888,7 +889,7 @@ function RestStage({
           <Ionicons
             name={isPaused ? 'play' : 'pause'}
             size={18}
-            color={isPaused ? '#ffffff' : '#111827'}
+            color={isPaused ? palette.surface : palette.textPrimary}
           />
           <Text style={styles.restControlText}>{isPaused ? 'Resume' : 'Pause'}</Text>
         </Pressable>
@@ -920,7 +921,7 @@ function RestStage({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f4f5f7' },
+  safeArea: { flex: 1, backgroundColor: palette.background },
   container: {
     flex: 1,
     paddingHorizontal: 20,
@@ -946,7 +947,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: palette.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -955,24 +956,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: palette.textPrimary,
     paddingHorizontal: 12,
   },
   closeButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stageCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#0f172a',
+    borderColor: palette.border,
+    shadowColor: palette.shadowStrong,
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -988,14 +989,14 @@ const styles = StyleSheet.create({
   stageHeaderBlock: { flex: 1, gap: 4 },
   stageHeaderLabel: {
     fontSize: 11,
-    color: '#6b7280',
+    color: palette.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   stageHeaderValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: palette.textPrimary,
     lineHeight: 18,
     flexWrap: 'wrap',
     flexShrink: 1,
@@ -1004,28 +1005,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: '#eef2ff',
+    backgroundColor: palette.primaryMuted,
     alignItems: 'center',
     minWidth: 88,
     gap: 2,
   },
-  stageTimerValue: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  stageTimerValue: { fontSize: 16, fontWeight: '700', color: palette.textPrimary },
   stageTimerSubtitle: {
     fontSize: 11,
-    color: '#6b7280',
+    color: palette.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   currentStepTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: palette.textPrimary,
     lineHeight: 24,
   },
   mediaWrapper: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: palette.border,
     height: 300,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1037,7 +1038,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  mediaPlaceholderText: { fontSize: 14, color: '#6b7280' },
+  mediaPlaceholderText: { fontSize: 14, color: palette.textMuted },
   mediaImage: { width: '100%', height: '100%' },
   mediaVideo: { width: '100%', height: '100%', backgroundColor: '#000' },
   mediaAudio: {
@@ -1051,10 +1052,10 @@ const styles = StyleSheet.create({
   mediaAudioText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: palette.textPrimary,
     textAlign: 'center',
   },
-  mediaAudioMuted: { fontSize: 12, color: '#6b7280' },
+  mediaAudioMuted: { fontSize: 12, color: palette.textMuted },
   skipFloatingButton: {
     position: 'absolute',
     right: 12,
@@ -1065,7 +1066,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#0f172a',
+    shadowColor: palette.shadowStrong,
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
@@ -1076,7 +1077,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  roundInfoText: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  roundInfoText: { fontSize: 13, fontWeight: '600', color: palette.textPrimary },
   roundAdjustButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1084,9 +1085,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#e0f2ff',
+    backgroundColor: palette.primaryMuted,
   },
-  roundAdjustText: { fontSize: 12, fontWeight: '600', color: '#1d4ed8' },
+  roundAdjustText: { fontSize: 12, fontWeight: '600', color: palette.primary },
   controlRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1106,73 +1107,73 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  controlIconWrapActive: { backgroundColor: '#1d4ed8' },
-  controlButtonText: { fontSize: 12, fontWeight: '600', color: '#111827' },
-  controlButtonTextDisabled: { color: '#94a3b8' },
+  controlIconWrapActive: { backgroundColor: palette.primary },
+  controlButtonText: { fontSize: 12, fontWeight: '600', color: palette.textPrimary },
+  controlButtonTextDisabled: { color: palette.textMuted },
   upcomingSection: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: palette.surfaceElevated,
     borderRadius: 16,
     padding: 16,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: palette.border,
   },
-  upNextHeading: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  upNextHeading: { fontSize: 14, fontWeight: '600', color: palette.textPrimary },
   upNextCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#0f172a',
+    borderColor: palette.border,
+    shadowColor: palette.shadowStrong,
     shadowOpacity: 0.03,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
   upNextContext: { flex: 1, marginRight: 12 },
-  upNextTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  upNextMeta: { fontSize: 12, color: '#6b7280', marginTop: 4 },
-  upcomingEmpty: { fontSize: 13, color: '#6b7280' },
-  upcomingLater: { fontSize: 12, color: '#6b7280' },
+  upNextTitle: { fontSize: 15, fontWeight: '600', color: palette.textPrimary },
+  upNextMeta: { fontSize: 12, color: palette.textMuted, marginTop: 4 },
+  upcomingEmpty: { fontSize: 13, color: palette.textMuted },
+  upcomingLater: { fontSize: 12, color: palette.textMuted },
   restMainDisplay: {
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: '#eef2ff',
+    backgroundColor: palette.primaryMuted,
     paddingVertical: 20,
     gap: 8,
   },
   restTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: palette.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  restTimerLarge: { fontSize: 60, fontWeight: '700', color: '#111827' },
-  restTimerCaption: { fontSize: 13, color: '#4b5563' },
+  restTimerLarge: { fontSize: 60, fontWeight: '700', color: palette.textPrimary },
+  restTimerCaption: { fontSize: 13, color: palette.textSecondary },
   restStageMessage: {
     fontSize: 13,
-    color: '#4b5563',
+    color: palette.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
   extendButton: {
     marginTop: 8,
-    backgroundColor: '#1d4ed8',
+    backgroundColor: palette.primary,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 6,
   },
-  extendButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 13 },
+  extendButtonText: { color: palette.surface, fontWeight: '700', fontSize: 13 },
   restFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1186,15 +1187,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#1d4ed8',
+    backgroundColor: palette.primary,
   },
-  restControlText: { fontSize: 12, fontWeight: '600', color: '#ffffff' },
+  restControlText: { fontSize: 12, fontWeight: '600', color: palette.surface },
   restNextBlock: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 16,
     padding: 14,
-    shadowColor: '#0f172a',
+    shadowColor: palette.shadowStrong,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -1203,21 +1204,21 @@ const styles = StyleSheet.create({
   },
   restNextLabel: {
     fontSize: 11,
-    color: '#6b7280',
+    color: palette.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  restNextValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  restNextMeta: { fontSize: 12, color: '#6b7280' },
+  restNextValue: { fontSize: 15, fontWeight: '700', color: palette.textPrimary },
+  restNextMeta: { fontSize: 12, color: palette.textMuted },
   skipRestButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
   },
-  skipRestText: { fontSize: 12, fontWeight: '600', color: '#1d4ed8' },
+  skipRestText: { fontSize: 12, fontWeight: '600', color: palette.primary },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
@@ -1228,13 +1229,13 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 24,
     padding: 24,
     gap: 16,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  modalSubtitle: { fontSize: 13, color: '#4b5563' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: palette.textPrimary },
+  modalSubtitle: { fontSize: 13, color: palette.textSecondary },
   modalControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1249,15 +1250,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalControlSecondary: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: palette.surfaceMuted,
   },
   modalControlPrimary: {
-    backgroundColor: '#2563eb',
+    backgroundColor: palette.primary,
   },
   modalCount: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: palette.textPrimary,
     minWidth: 40,
     textAlign: 'center',
   },
@@ -1270,40 +1271,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: palette.border,
   },
-  modalCancelText: { color: '#111827', fontWeight: '600' },
+  modalCancelText: { color: palette.textPrimary, fontWeight: '600' },
   modalConfirm: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#2563eb',
+    backgroundColor: palette.primary,
   },
-  modalConfirmText: { color: '#ffffff', fontWeight: '700' },
+  modalConfirmText: { color: palette.surface, fontWeight: '700' },
   primaryButton: {
     marginTop: 20,
-    backgroundColor: '#2563eb',
+    backgroundColor: palette.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
   },
-  primaryButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-  errorTitle: { fontSize: 22, fontWeight: '700', color: '#111827', marginTop: 16 },
+  primaryButtonText: { color: palette.surface, fontWeight: '700', fontSize: 15 },
+  errorTitle: { fontSize: 22, fontWeight: '700', color: palette.textPrimary, marginTop: 16 },
   errorMessage: {
     fontSize: 14,
-    color: '#4b5563',
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: 8,
   },
   completionCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 24,
     paddingVertical: 48,
     paddingHorizontal: 24,
     marginTop: 32,
     gap: 12,
   },
-  completionTitle: { fontSize: 24, fontWeight: '700', color: '#111827' },
-  completionMessage: { fontSize: 14, color: '#4b5563', textAlign: 'center' },
+  completionTitle: { fontSize: 24, fontWeight: '700', color: palette.textPrimary },
+  completionMessage: { fontSize: 14, color: palette.textSecondary, textAlign: 'center' },
   completionButton: { marginTop: 12 },
 });

@@ -2,6 +2,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import { palette } from '../../constants/theme';
+
 const TAB_ICON_SIZE = 24;
 
 export default function TabsLayout() {
@@ -9,20 +11,23 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#1d4ed8',
-        tabBarInactiveTintColor: '#64748b',
+        tabBarActiveTintColor: palette.primary,
+        tabBarInactiveTintColor: palette.tabIconInactive,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: palette.surface,
           borderTopWidth: 0,
-          elevation: 6,
-          shadowOpacity: 0.08,
+          elevation: 8,
+          shadowColor: palette.shadow,
+          shadowOpacity: 0.18,
           height: 70,
           paddingBottom: 12,
           paddingTop: 10,
+          borderTopColor: palette.border,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
+          letterSpacing: 0.2,
         },
       }}
     >

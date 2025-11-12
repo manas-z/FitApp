@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { palette, radii, spacing } from '../../constants/theme';
 import { signOut } from 'firebase/auth';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useFirebase, useUser, useCollection } from '../../src/firebase';
@@ -125,7 +126,7 @@ export default function DashboardScreen() {
 
     return (
       <View style={styles.mediaAudio}>
-        <Ionicons name="musical-notes" size={20} color="#2563eb" />
+        <Ionicons name="musical-notes" size={20} color={palette.primary} />
       </View>
     );
   };
@@ -156,11 +157,11 @@ export default function DashboardScreen() {
           ) : null}
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Feather name="clock" size={14} color="#1f2937" />
+              <Feather name="clock" size={14} color={palette.textSecondary} />
               <Text style={styles.metaText}>{durationLabel}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Feather name="list" size={14} color="#1f2937" />
+              <Feather name="list" size={14} color={palette.textSecondary} />
               <Text style={styles.metaText}>
                 {stepsCount} step{stepsCount === 1 ? '' : 's'}
               </Text>
@@ -173,14 +174,14 @@ export default function DashboardScreen() {
             style={styles.iconButton}
             onPress={() => handlePlay(item.id)}
           >
-            <Ionicons name="play" size={18} color="#111827" />
+            <Ionicons name="play" size={18} color={palette.primaryDark} />
           </Pressable>
           <Pressable
             accessibilityLabel={`Open menu for ${item.title}`}
             style={styles.iconButton}
             onPress={() => handleOpenMenu(item)}
           >
-            <Ionicons name="menu" size={18} color="#111827" />
+            <Ionicons name="menu" size={18} color={palette.primaryDark} />
           </Pressable>
         </View>
       </View>
@@ -202,14 +203,19 @@ export default function DashboardScreen() {
             style={styles.newButton}
             onPress={() => router.push('/(tabs)/schedules/new')}
           >
-            <Feather name="plus" size={18} color="#0f172a" style={styles.newIcon} />
+            <Feather
+              name="plus"
+              size={18}
+              color={palette.surface}
+              style={styles.newIcon}
+            />
             <Text style={styles.newButtonText}>New</Text>
           </Pressable>
         </View>
 
         {isLoading ? (
           <View style={styles.loadingState}>
-            <ActivityIndicator size="small" color="#0f172a" />
+            <ActivityIndicator size="small" color={palette.primary} />
           </View>
         ) : (
           <FlatList
@@ -250,11 +256,11 @@ export default function DashboardScreen() {
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
           <View style={styles.menuCard}>
             <Pressable style={styles.menuItem} onPress={handleEdit}>
-              <Feather name="edit-2" size={16} color="#0f172a" />
+              <Feather name="edit-2" size={16} color={palette.primaryDark} />
               <Text style={styles.menuItemText}>Edit schedule</Text>
             </Pressable>
             <Pressable style={styles.menuItem} onPress={handleDelete}>
-              <Feather name="trash-2" size={16} color="#dc2626" />
+              <Feather name="trash-2" size={16} color={palette.danger} />
               <Text style={[styles.menuItemText, styles.menuDeleteText]}>Delete schedule</Text>
             </Pressable>
           </View>
@@ -267,60 +273,62 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#d7ecf7',
+    backgroundColor: palette.background,
   },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    backgroundColor: palette.background,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   headerTextGroup: {
     flex: 1,
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   greeting: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
   },
   helperText: {
     fontSize: 14,
-    color: '#334155',
+    color: palette.textSecondary,
   },
   newButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fcd34d',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
+    backgroundColor: palette.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
   newIcon: {
-    marginRight: 6,
+    marginRight: spacing.xs,
   },
   newButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
+    color: palette.surface,
+    letterSpacing: 0.2,
   },
   loadingState: {
     flex: 1,
@@ -328,7 +336,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    paddingBottom: 32,
+    paddingBottom: spacing.xxl,
   },
   emptyList: {
     flexGrow: 1,
@@ -341,41 +349,44 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
   },
   emptyMessage: {
     fontSize: 14,
-    color: '#334155',
+    color: palette.textSecondary,
     textAlign: 'center',
+    maxWidth: 220,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   mediaContainer: {
     width: 72,
     height: 72,
-    borderRadius: 16,
+    borderRadius: radii.lg,
     overflow: 'hidden',
-    backgroundColor: '#e2e8f0',
-    marginRight: 16,
+    backgroundColor: palette.surfaceMuted,
+    marginRight: spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   mediaFallback: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#cbd5f5',
+    backgroundColor: palette.primaryMuted,
   },
   mediaImage: {
     width: '100%',
@@ -397,88 +408,98 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
   },
   cardDescription: {
     fontSize: 13,
-    color: '#475569',
-    marginBottom: 6,
+    color: palette.textSecondary,
+    marginBottom: spacing.sm,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    columnGap: 16,
+    columnGap: spacing.lg,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   metaText: {
-    marginLeft: 6,
+    marginLeft: spacing.xs,
     fontSize: 13,
-    color: '#1f2937',
+    color: palette.textMuted,
     fontWeight: '500',
   },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   iconButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
+    borderRadius: radii.md,
+    backgroundColor: palette.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: spacing.sm,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   logoutButton: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: palette.primaryDark,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   logoutText: {
-    color: '#fff',
+    color: palette.surface,
     fontWeight: '600',
     fontSize: 15,
+    letterSpacing: 0.3,
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: palette.overlay,
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
     paddingTop: 72,
-    paddingBottom: 24,
+    paddingBottom: spacing.xl,
   },
   menuCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    backgroundColor: palette.surface,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.xs,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   menuItemText: {
-    marginLeft: 12,
+    marginLeft: spacing.sm,
     fontSize: 15,
     fontWeight: '500',
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   menuDeleteText: {
-    color: '#dc2626',
+    color: palette.danger,
   },
 });

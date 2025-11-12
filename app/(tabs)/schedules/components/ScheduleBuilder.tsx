@@ -26,6 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import type { ScheduleFormValues } from '../types';
 import type { ScheduleStepMedia } from '../../../../src/lib/types';
+import { palette } from '../../../../constants/theme';
 
 type ScheduleBuilderProps = {
   control: Control<ScheduleFormValues>;
@@ -137,7 +138,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                     <TextInput
                       style={styles.input}
                       placeholder="Enter a step name"
-                      placeholderTextColor="#94a3b8"
+                      placeholderTextColor={palette.textMuted}
                       value={value}
                       onChangeText={onChange}
                     />
@@ -155,7 +156,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                       <TextInput
                         style={styles.input}
                         placeholder="45"
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor={palette.textMuted}
                         keyboardType="numeric"
                         value={value}
                         onChangeText={onChange}
@@ -172,7 +173,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                       <TextInput
                         style={styles.input}
                         placeholder="15"
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor={palette.textMuted}
                         keyboardType="numeric"
                         value={value}
                         onChangeText={onChange}
@@ -191,7 +192,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                     <TextInput
                       style={[styles.input, styles.multiline]}
                       placeholder="Add spoken or on-screen instructions"
-                      placeholderTextColor="#94a3b8"
+                      placeholderTextColor={palette.textMuted}
                       value={value}
                       onChangeText={onChange}
                       multiline
@@ -208,7 +209,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                   onPress={() => onPickStepMedia(stepIndex)}
                 >
                   {uploadingStepIndex === stepIndex ? (
-                    <ActivityIndicator color="#0f172a" />
+                    <ActivityIndicator color={palette.textPrimary} />
                   ) : media?.url ? (
                     <View style={styles.modalPreview}>
                       {media.type === 'image' ? (
@@ -226,7 +227,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                           <Ionicons
                             name="musical-notes"
                             size={28}
-                            color="#2563eb"
+                            color={palette.primary}
                           />
                           <Text style={styles.modalAudioText} numberOfLines={1}>
                             {media.hint ?? 'Audio clip'}
@@ -239,7 +240,7 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                       <Ionicons
                         name="cloud-upload-outline"
                         size={32}
-                        color="#2563eb"
+                        color={palette.primary}
                         style={styles.uploadPromptIcon}
                       />
                       <Text style={styles.uploadPromptText}>
@@ -253,14 +254,14 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                     style={styles.removeMediaButton}
                     onPress={() => onRemoveStepMedia(stepIndex)}
                   >
-                    <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                    <Ionicons name="trash-outline" size={16} color={palette.danger} />
                     <Text style={styles.removeMediaText}>Remove file</Text>
                   </Pressable>
                 ) : null}
               </View>
 
               <Pressable style={styles.addNextStepButton} onPress={onAddNextStep}>
-                <Ionicons name="add-circle-outline" size={18} color="#2563eb" />
+                <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
                 <Text style={styles.addNextStepText}>Add another step</Text>
               </Pressable>
             </ScrollView>
@@ -331,7 +332,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               <TextInput
                 style={styles.input}
                 placeholder="e.g., Test Duration"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={palette.textMuted}
                 value={value}
                 onChangeText={onChange}
               />
@@ -361,7 +362,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               <TextInput
                 style={styles.input}
                 placeholder="e.g., Every Tuesday"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={palette.textMuted}
                 value={value}
                 onChangeText={onChange}
               />
@@ -373,7 +374,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
           <Text style={styles.label}>Schedule music</Text>
           {music?.url ? (
             <View style={styles.musicSelected}>
-              <Ionicons name="musical-notes" size={18} color="#1d4ed8" />
+              <Ionicons name="musical-notes" size={18} color={palette.primary} />
               <View style={styles.musicTextGroup}>
                 <Text style={styles.musicTitle} numberOfLines={1}>
                   {music.title ?? 'Selected audio'}
@@ -381,7 +382,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
                 <Text style={styles.musicSubtitle}>Tap remove to clear</Text>
               </View>
               <Pressable onPress={onRemoveMusic} style={styles.musicRemoveButton}>
-                <Ionicons name="close" size={16} color="#dc2626" />
+                <Ionicons name="close" size={16} color={palette.danger} />
                 <Text style={styles.musicRemoveText}>Remove</Text>
               </Pressable>
             </View>
@@ -392,13 +393,13 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               disabled={uploadingMusic}
             >
               {uploadingMusic ? (
-                <ActivityIndicator color="#0f172a" />
+                <ActivityIndicator color={palette.textPrimary} />
               ) : (
                 <>
                   <Ionicons
                     name="cloud-upload-outline"
                     size={18}
-                    color="#1d4ed8"
+                    color={palette.primary}
                     style={styles.uploadIcon}
                   />
                   <Text style={styles.musicUploadText}>Upload audio</Text>
@@ -417,7 +418,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               <TextInput
                 style={[styles.input, styles.multiline]}
                 placeholder="Add a short description"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={palette.textMuted}
                 multiline
                 numberOfLines={3}
                 value={value}
@@ -435,7 +436,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
             </Text>
           </View>
           <Pressable style={styles.addStepButton} onPress={onAddStep}>
-            <Ionicons name="add-circle-outline" size={18} color="#2563eb" />
+            <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
             <Text style={styles.addStepText}>Add Step</Text>
           </Pressable>
         </View>
@@ -472,7 +473,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
             hitSlop={8}
             style={styles.dragHandle}
           >
-            <Ionicons name="reorder-three" size={28} color="#334155" />
+            <Ionicons name="reorder-three" size={28} color={palette.textSecondary} />
           </Pressable>
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle} numberOfLines={1}>
@@ -491,7 +492,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
                 <Ionicons
                   name={mediaIconForType(step.media)}
                   size={16}
-                  color="#2563eb"
+                  color={palette.primary}
                 />
                 <Text style={styles.stepMediaText} numberOfLines={1}>
                   {step.media.hint ?? 'Attached file'}
@@ -505,14 +506,14 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               onPress={() => setEditingStepIndex(index)}
               style={styles.iconButton}
             >
-              <Ionicons name="create-outline" size={18} color="#0f172a" />
+              <Ionicons name="create-outline" size={18} color={palette.textPrimary} />
             </Pressable>
             <Pressable
               accessibilityLabel="Delete step"
               onPress={() => onRemoveStep(index)}
               style={styles.iconButton}
             >
-              <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              <Ionicons name="trash-outline" size={18} color={palette.danger} />
             </Pressable>
           </View>
         </View>
@@ -566,7 +567,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
           onPress={isSaving ? undefined : onSubmit}
         >
           {isSaving ? (
-            <ActivityIndicator color="#f8fafc" />
+            <ActivityIndicator color={palette.surface} />
           ) : (
             <Text style={styles.saveButtonText}>
               {mode === 'create' ? 'Save Schedule' : 'Update Schedule'}
@@ -602,18 +603,18 @@ export default ScheduleBuilder;
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: '#e0f2ff',
+    backgroundColor: palette.background,
   },
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 160,
   },
   headerCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 20,
     padding: 20,
     marginBottom: 24,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -622,12 +623,12 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.textPrimary,
     marginBottom: 4,
   },
   helperCopy: {
     fontSize: 14,
-    color: '#475569',
+    color: palette.textSecondary,
     marginBottom: 16,
   },
   fieldGroup: {
@@ -636,19 +637,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1e293b',
+    color: palette.textPrimary,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#cbd5f5',
-    backgroundColor: '#f8fbff',
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceMuted,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#0f172a',
+    color: palette.textPrimary,
     fontSize: 14,
   },
   multiline: {
@@ -662,28 +663,28 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     flex: 1,
-    backgroundColor: '#eff6ff',
+    backgroundColor: palette.primaryMuted,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: palette.primaryMuted,
   },
   infoLabel: {
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
-    color: '#1d4ed8',
+    color: palette.primary,
     marginBottom: 6,
     letterSpacing: 0.6,
   },
   infoValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   infoHint: {
     fontSize: 12,
-    color: '#475569',
+    color: palette.textSecondary,
     marginTop: 4,
   },
   musicUpload: {
@@ -693,13 +694,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#93c5fd',
-    backgroundColor: '#e0f2ff',
+    borderColor: palette.primary,
+    backgroundColor: palette.background,
   },
   musicUploadText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1d4ed8',
+    color: palette.primary,
   },
   uploadIcon: {
     marginRight: 8,
@@ -709,10 +710,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#93c5fd',
+    borderColor: palette.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#eff6ff',
+    backgroundColor: palette.primaryMuted,
     gap: 12,
   },
   musicTextGroup: {
@@ -721,11 +722,11 @@ const styles = StyleSheet.create({
   musicTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   musicSubtitle: {
     fontSize: 12,
-    color: '#475569',
+    color: palette.textSecondary,
   },
   musicRemoveButton: {
     flexDirection: 'row',
@@ -733,7 +734,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   musicRemoveText: {
-    color: '#dc2626',
+    color: palette.danger,
     fontWeight: '600',
   },
   inlineFields: {
@@ -751,11 +752,11 @@ const styles = StyleSheet.create({
   stepsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   stepsSubtitle: {
     fontSize: 12,
-    color: '#475569',
+    color: palette.textSecondary,
     marginTop: 4,
   },
   addStepButton: {
@@ -765,29 +766,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#dbeafe',
+    backgroundColor: palette.primaryMuted,
   },
   addStepText: {
-    color: '#2563eb',
+    color: palette.primary,
     fontWeight: '700',
     textTransform: 'uppercase',
     fontSize: 12,
   },
   stepCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderRadius: 18,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#cbd5f5',
-    shadowColor: '#000',
+    borderColor: palette.border,
+    shadowColor: palette.shadow,
     shadowOpacity: 0.04,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   stepCardActive: {
-    borderColor: '#2563eb',
+    borderColor: palette.primary,
     shadowOpacity: 0.12,
   },
   stepRow: {
@@ -805,15 +806,15 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   stepSubtitle: {
     fontSize: 12,
-    color: '#475569',
+    color: palette.textSecondary,
   },
   stepInstruction: {
     fontSize: 12,
-    color: '#334155',
+    color: palette.textSecondary,
   },
   stepMediaRow: {
     flexDirection: 'row',
@@ -822,7 +823,7 @@ const styles = StyleSheet.create({
   },
   stepMediaText: {
     fontSize: 12,
-    color: '#2563eb',
+    color: palette.primary,
     flex: 1,
   },
   stepActions: {
@@ -834,7 +835,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: palette.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -846,32 +847,32 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: 'rgba(224, 242, 255, 0.95)',
     borderTopWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: palette.primaryMuted,
     gap: 12,
   },
   secondaryButton: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5f5',
-    backgroundColor: '#f8fbff',
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceMuted,
     paddingVertical: 14,
     alignItems: 'center',
   },
   secondaryButtonDanger: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fee2e2',
+    borderColor: palette.dangerMuted,
+    backgroundColor: palette.dangerMuted,
   },
   secondaryButtonText: {
-    color: '#0f172a',
+    color: palette.textPrimary,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   secondaryButtonTextDanger: {
-    color: '#b91c1c',
+    color: palette.danger,
   },
   saveButton: {
-    backgroundColor: '#0f172a',
+    backgroundColor: palette.primaryDark,
     borderRadius: 999,
     paddingVertical: 16,
     alignItems: 'center',
@@ -880,7 +881,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: '#f8fafc',
+    color: palette.surface,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -890,7 +891,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#475569',
+    color: palette.textSecondary,
   },
   modalOverlay: {
     flex: 1,
@@ -902,7 +903,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   modalCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 16,
@@ -915,18 +916,18 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.textPrimary,
     marginBottom: 16,
   },
   uploadArea: {
     borderWidth: 1,
-    borderColor: '#93c5fd',
+    borderColor: palette.primary,
     borderStyle: 'dashed',
     borderRadius: 18,
     minHeight: 160,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fbff',
+    backgroundColor: palette.surfaceMuted,
   },
   uploadPrompt: {
     justifyContent: 'center',
@@ -938,7 +939,7 @@ const styles = StyleSheet.create({
   },
   uploadPromptText: {
     fontSize: 14,
-    color: '#475569',
+    color: palette.textSecondary,
     textAlign: 'center',
   },
   modalPreview: {
@@ -964,7 +965,7 @@ const styles = StyleSheet.create({
   },
   modalAudioText: {
     fontSize: 14,
-    color: '#0f172a',
+    color: palette.textPrimary,
   },
   removeMediaButton: {
     flexDirection: 'row',
@@ -973,7 +974,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   removeMediaText: {
-    color: '#dc2626',
+    color: palette.danger,
     fontWeight: '600',
   },
   addNextStepButton: {
@@ -984,7 +985,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   addNextStepText: {
-    color: '#2563eb',
+    color: palette.primary,
     fontWeight: '600',
   },
   modalFooter: {
@@ -997,24 +998,24 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5f5',
+    borderColor: palette.border,
     paddingVertical: 12,
     marginRight: 12,
     alignItems: 'center',
   },
   modalActionSecondaryText: {
-    color: '#334155',
+    color: palette.textSecondary,
     fontWeight: '600',
   },
   modalActionPrimary: {
     flex: 1,
     borderRadius: 999,
-    backgroundColor: '#0f172a',
+    backgroundColor: palette.primaryDark,
     paddingVertical: 12,
     alignItems: 'center',
   },
   modalActionPrimaryText: {
-    color: '#f8fafc',
+    color: palette.surface,
     fontWeight: '700',
   },
 });

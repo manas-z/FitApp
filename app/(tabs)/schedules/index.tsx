@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useUser, useCollection } from '../../../src/firebase';
 import type { Schedule } from '../../../src/lib/types';
+import { palette, radii, spacing } from '../../../constants/theme';
 
 export default function SchedulesListScreen() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function SchedulesListScreen() {
 
       {loading && (
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={palette.primary} />
         </View>
       )}
 
@@ -91,32 +92,79 @@ export default function SchedulesListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: {
+    flex: 1,
+    padding: spacing.xl,
+    backgroundColor: palette.background,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.xl,
   },
-  title: { fontSize: 24, fontWeight: 'bold' },
+  title: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
   newButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#111827',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: palette.primary,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  newButtonText: { color: '#fff', fontWeight: '600' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { color: '#b91c1c' },
-  emptyText: { color: '#6b7280', marginTop: 8 },
+  newButtonText: {
+    color: palette.surface,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    color: palette.danger,
+    marginTop: spacing.md,
+  },
+  emptyText: {
+    color: palette.textMuted,
+    marginTop: spacing.md,
+    fontSize: 15,
+  },
   card: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 8,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  cardDescription: { color: '#4b5563', marginBottom: 4 },
-  cardMeta: { color: '#6b7280', fontSize: 12 },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+    color: palette.textPrimary,
+  },
+  cardDescription: {
+    color: palette.textSecondary,
+    marginBottom: spacing.xs,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  cardMeta: {
+    color: palette.textMuted,
+    fontSize: 13,
+  },
 });

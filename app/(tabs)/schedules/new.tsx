@@ -17,6 +17,7 @@ import type { ScheduleStep } from '../../../src/lib/types';
 import ScheduleBuilder from '../../../components/schedules/ScheduleBuilder';
 import type { ScheduleFormValues } from '../../../components/schedules/types';
 import { createEmptyStep, makeStepId } from '../../../components/schedules/utils';
+import { palette, radii, spacing } from '../../../constants/theme';
 
 function inferMediaType(mimeType?: string | null) {
   if (!mimeType) return 'image';
@@ -296,7 +297,7 @@ export default function NewScheduleScreen() {
       >
         <View style={styles.successOverlay}>
           <View style={styles.successCard}>
-            <Ionicons name="checkmark-circle" size={56} color="#22c55e" />
+            <Ionicons name="checkmark-circle" size={56} color={palette.success} />
             <Text style={styles.successTitle}>Schedule saved!</Text>
             <Text style={styles.successMessage}>
               Redirecting you to your dashboard…
@@ -312,35 +313,38 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   successOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(23, 30, 56, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.xl,
   },
   successCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    paddingVertical: 36,
-    paddingHorizontal: 28,
+    backgroundColor: palette.surface,
+    borderRadius: radii.xl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.2,
     shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   successTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0f172a',
-    marginTop: 16,
-    marginBottom: 8,
+    color: palette.textPrimary,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   successMessage: {
     fontSize: 14,
-    color: '#475569',
+    color: palette.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

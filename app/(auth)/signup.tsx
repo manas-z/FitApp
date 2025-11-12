@@ -11,6 +11,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useFirebase } from '../../src/firebase';
+import { palette, radii, spacing } from '../../constants/theme';
 
 type FormValues = {
   email: string;
@@ -41,7 +42,7 @@ export default function SignupScreen() {
           <TextInput
             style={styles.input}
             placeholder="Enter your email"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={palette.textMuted}
             autoCapitalize="none"
             keyboardType="email-address"
             onChangeText={onChange}
@@ -59,7 +60,7 @@ export default function SignupScreen() {
           <TextInput
             style={styles.input}
             placeholder="Create a password (min 6 chars)"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={palette.textMuted}
             secureTextEntry
             onChangeText={onChange}
             value={value}
@@ -79,22 +80,51 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 24 },
+  container: {
+    flex: 1,
+    padding: spacing.xl,
+    justifyContent: 'center',
+    backgroundColor: palette.background,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: spacing.xl,
+    color: palette.textPrimary,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    borderColor: palette.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: palette.surface,
+    color: palette.textPrimary,
+    fontSize: 16,
   },
   button: {
-    marginTop: 8,
-    padding: 14,
-    borderRadius: 8,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: palette.primary,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  link: { marginTop: 16, textAlign: 'center', color: '#4b5563' },
+  buttonText: {
+    color: palette.surface,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  link: {
+    marginTop: spacing.lg,
+    textAlign: 'center',
+    color: palette.textSecondary,
+    fontWeight: '600',
+  },
 });

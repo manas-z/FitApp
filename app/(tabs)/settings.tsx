@@ -1,20 +1,15 @@
 // app/(tabs)/settings.tsx
-import { useState, useEffect, useCallback } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-  Pressable,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { Screen } from '@/components/Screen';
+import { StyledText } from '@/components/StyledText';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import {
-  REST_DURATION_STORAGE_KEY,
   DEFAULT_REST_DURATION_SECONDS,
 } from '../../constants/settings';
 import {
@@ -31,12 +26,10 @@ const SAVE_BUTTON_TEXT_COLOR = getReadableTextColor(SAVE_BUTTON_BACKGROUND);
 const VOICES = ['Male Voice 1', 'Female Voice 1', 'Neutral Voice'];
 
 export default function SettingsScreen() {
-  const [restDuration, setRestDuration] = useState(
-    DEFAULT_REST_DURATION_SECONDS,
-  );
+  const [restDuration, setRestDuration] = useState(DEFAULT_REST_DURATION_SECONDS);
   const [countdownEnabled, setCountdownEnabled] = useState(true);
   const [voice, setVoice] = useState<string>(VOICES[0]);
-  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [defaultSprints, setDefaultSprints] = useState(3);
 
   useEffect(() => {
@@ -60,341 +53,283 @@ export default function SettingsScreen() {
 
   const persistRestDuration = useCallback(async (value: number) => {
     try {
-      await AsyncStorage.setItem(
-        REST_DURATION_STORAGE_KEY,
-        value.toString(),
-      );
+      await AsyncStorage.setItem(REST_DURATION_STORAGE_KEY, value.toString());
     } catch (err) {
       console.warn('Failed to persist rest duration preference', err);
     }
   }, []);
 
-  const toggleVoiceMenu = () => {
-    setIsVoiceMenuOpen((prev) => !prev);
-  };
+  const toggleVoiceMenu = () => setVoiceMenuOpen((prev) => !prev);
 
-  const handleSelectVoice = (selectedVoice: string) => {
-    setVoice(selectedVoice);
-    setIsVoiceMenuOpen(false);
+  const handleSave = () => {
+    void persistRestDuration(restDuration);
+    console.log('Settings saved');
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.contentContainer}
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.heading}>Settings</Text>
-        <Text style={styles.subheading}>
-          Customize your workout experience.
-        </Text>
+    <Screen contentStyle={styles.content}>
+      <View style={styles.header}>
+        <StyledText variant="title" weight="bold">
+          Settings
+        </StyledText>
+        <StyledText tone="muted">Customize your workout experience.</StyledText>
+      </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="play-circle" size={22} color={palette.primary} />
-            <Text style={styles.cardTitle}>Workout Player</Text>
+      <Card elevated>
+        <View style={styles.sectionHeading}>
+          <View style={styles.iconBadge}>
+            <Ionicons name="play" size={18} color={palette.primary} />
           </View>
-          <Text style={styles.cardDescription}>
-            Adjust settings for the in-workout experience.
-          </Text>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>Rest Duration Between Steps</Text>
-            <View style={styles.sliderRow}>
-              <Slider
-                style={styles.slider}
-                minimumValue={10}
-                maximumValue={120}
-                step={5}
-                minimumTrackTintColor={palette.primary}
-                maximumTrackTintColor={palette.primaryMuted}
-                thumbTintColor={palette.primary}
-                value={restDuration}
-                onValueChange={(value) => setRestDuration(Math.round(value))}
-                onSlidingComplete={(value) => {
-                  const rounded = Math.round(value);
-                  setRestDuration(rounded);
-                  void persistRestDuration(rounded);
-                }}
-              />
-              <Text style={styles.sliderValue}>{restDuration}s</Text>
-            </View>
-          </View>
-
-          <View style={[styles.settingGroup, styles.toggleRow]}>
-            <View style={styles.toggleTextWrapper}>
-              <Text style={styles.settingLabel}>Enable Countdown Timer</Text>
-              <Text style={styles.settingHint}>
-                A 3-second countdown before each step.
-              </Text>
-            </View>
-            <Switch
-              accessibilityLabel="Toggle countdown timer"
-              value={countdownEnabled}
-              onValueChange={setCountdownEnabled}
-              thumbColor={countdownEnabled ? palette.primary : palette.surface}
-              trackColor={{
-                false: palette.surfaceMuted,
-                true: palette.primaryMuted,
-              }}
-            />
-          </View>
-
-          <View style={[styles.settingGroup, styles.lastSettingGroup]}>
-            <Text style={styles.settingLabel}>Countdown Voice</Text>
-            <Text style={styles.settingHint}>Choose the voice that cues each step.</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Select countdown voice"
-              style={({ pressed }) => [
-                styles.dropdown,
-                pressed && styles.dropdownPressed,
-                isVoiceMenuOpen && styles.dropdownActive,
-              ]}
-              onPress={toggleVoiceMenu}
-            >
-              <Text style={styles.dropdownText}>{voice}</Text>
-              <Ionicons
-                name={isVoiceMenuOpen ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={palette.textPrimary}
-                style={styles.dropdownIcon}
-              />
-            </Pressable>
-            {isVoiceMenuOpen ? (
-              <View style={styles.dropdownMenu}>
-                {VOICES.map((item) => {
-                  const isSelected = item === voice;
-                  return (
-                    <Pressable
-                      key={item}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Use ${item}`}
-                      style={({ pressed }) => [
-                        styles.dropdownOption,
-                        isSelected && styles.dropdownOptionSelected,
-                        pressed && styles.dropdownOptionPressed,
-                      ]}
-                      onPress={() => handleSelectVoice(item)}
-                    >
-                      <Text
-                        style={[
-                          styles.dropdownOptionText,
-                          isSelected && styles.dropdownOptionTextSelected,
-                        ]}
-                      >
-                        {item}
-                      </Text>
-                      {isSelected ? (
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color={palette.primary}
-                          style={styles.dropdownIcon}
-                        />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
+          <View>
+            <StyledText variant="subtitle" weight="semibold">
+              Workout player
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              Playback preferences
+            </StyledText>
           </View>
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="options" size={20} color={palette.primary} />
-            <Text style={styles.cardTitle}>Defaults</Text>
+        <View style={styles.settingBlock}>
+          <View>
+            <StyledText variant="label" weight="semibold">
+              Rest duration
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              Time between each interval (seconds)
+            </StyledText>
           </View>
-          <Text style={styles.cardDescription}>
-            Set default values for new schedules and workouts.
-          </Text>
-
-          <View style={[styles.settingGroup, styles.lastSettingGroup]}>
-            <Text style={styles.settingLabel}>Default Sprints</Text>
-            <View style={styles.sliderRow}>
-              <Slider
-                style={styles.slider}
-                minimumValue={1}
-                maximumValue={10}
-                step={1}
-                minimumTrackTintColor={palette.primary}
-                maximumTrackTintColor={palette.primaryMuted}
-                thumbTintColor={palette.primary}
-                value={defaultSprints}
-                onValueChange={(value) => setDefaultSprints(Math.round(value))}
-              />
-              <Text style={styles.sliderValue}>{defaultSprints}</Text>
-            </View>
-          </View>
+          <StyledText variant="label" tone="primary">
+            {restDuration}s
+          </StyledText>
         </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Save settings"
-          style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
-          onPress={() => {
-            void persistRestDuration(restDuration);
-            console.log('Settings saved');
+        <Slider
+          style={styles.slider}
+          minimumValue={10}
+          maximumValue={120}
+          step={5}
+          minimumTrackTintColor={palette.primary}
+          maximumTrackTintColor={palette.primaryMuted}
+          thumbTintColor={palette.primary}
+          value={restDuration}
+          onValueChange={(value) => setRestDuration(Math.round(value))}
+          onSlidingComplete={(value) => {
+            const rounded = Math.round(value);
+            setRestDuration(rounded);
+            void persistRestDuration(rounded);
           }}
-        >
-          <Text style={styles.saveButtonText}>Save Changes</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+        />
+
+        <View style={styles.settingRow}>
+          <View style={styles.settingCopy}>
+            <StyledText variant="label" weight="semibold">
+              Countdown timer
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              Play a short cue before each effort.
+            </StyledText>
+          </View>
+          <Switch
+            accessibilityLabel="Toggle countdown timer"
+            value={countdownEnabled}
+            onValueChange={setCountdownEnabled}
+            thumbColor={countdownEnabled ? palette.primary : palette.surface}
+            trackColor={{
+              true: palette.primaryMuted,
+              false: palette.border,
+            }}
+          />
+        </View>
+
+        <View style={styles.settingBlock}>
+          <View style={styles.settingCopy}>
+            <StyledText variant="label" weight="semibold">
+              Countdown voice
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              Choose the guidance tone you prefer.
+            </StyledText>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.voicePicker,
+              pressed && styles.voicePickerPressed,
+              voiceMenuOpen && styles.voicePickerActive,
+            ]}
+            onPress={toggleVoiceMenu}
+          >
+            <StyledText variant="label">{voice}</StyledText>
+            <Ionicons
+              name={voiceMenuOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color={palette.textPrimary}
+            />
+          </Pressable>
+        </View>
+
+        {voiceMenuOpen ? (
+          <View style={styles.voiceMenu}>
+            {VOICES.map((item) => {
+              const isSelected = item === voice;
+              return (
+                <Pressable
+                  key={item}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.voiceOption,
+                    isSelected && styles.voiceOptionSelected,
+                    pressed && styles.voiceOptionPressed,
+                  ]}
+                  onPress={() => {
+                    setVoice(item);
+                    setVoiceMenuOpen(false);
+                  }}
+                >
+                  <StyledText
+                    variant="body"
+                    weight="medium"
+                    style={isSelected ? { color: palette.primary } : undefined}
+                  >
+                    {item}
+                  </StyledText>
+                  {isSelected ? (
+                    <Ionicons name="checkmark" size={16} color={palette.primary} />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      </Card>
+
+      <Card>
+        <View style={styles.sectionHeading}>
+          <View style={styles.iconBadge}>
+            <Ionicons name="options" size={16} color={palette.primary} />
+          </View>
+          <View>
+            <StyledText variant="subtitle" weight="semibold">
+              Defaults
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              New workout templates
+            </StyledText>
+          </View>
+        </View>
+
+        <View style={styles.settingBlock}>
+          <View>
+            <StyledText variant="label" weight="semibold">
+              Default sprints
+            </StyledText>
+            <StyledText variant="caption" tone="muted">
+              Base number when creating a new plan.
+            </StyledText>
+          </View>
+          <StyledText variant="label" tone="primary">
+            {defaultSprints}
+          </StyledText>
+        </View>
+
+        <Slider
+          style={styles.slider}
+          minimumValue={1}
+          maximumValue={10}
+          step={1}
+          minimumTrackTintColor={palette.primary}
+          maximumTrackTintColor={palette.primaryMuted}
+          thumbTintColor={palette.primary}
+          value={defaultSprints}
+          onValueChange={(value) => setDefaultSprints(Math.round(value))}
+        />
+      </Card>
+
+      <Button title="Save changes" variant="secondary" onPress={handleSave} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  contentContainer: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
+  content: {
+    gap: spacing.xl,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
   },
-  heading: {
-    fontSize: 32,
-    fontWeight: typography.headingFontWeight,
-    color: palette.textPrimary,
-    marginBottom: spacing.xs,
-    letterSpacing: 0.2,
+  header: {
+    gap: spacing.xs,
   },
-  subheading: {
-    fontSize: 16,
-    color: palette.textSecondary,
-    marginBottom: spacing.xl,
-    lineHeight: 22,
-  },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  cardHeader: {
+  sectionHeading: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginLeft: spacing.sm,
-  },
-  cardDescription: {
-    fontSize: 15,
-    color: palette.textSecondary,
-    lineHeight: 22,
+    gap: spacing.md,
     marginBottom: spacing.lg,
   },
-  settingGroup: {
-    marginBottom: spacing.xl,
-  },
-  lastSettingGroup: {
-    marginBottom: 0,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: typography.labelFontWeight,
-    color: palette.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  settingHint: {
-    fontSize: 14,
-    color: palette.textMuted,
-    lineHeight: 20,
-  },
-  sliderRow: {
-    flexDirection: 'row',
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.primaryMuted,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.xs,
   },
   slider: {
-    flex: 1,
+    marginTop: spacing.sm,
   },
-  sliderValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: palette.primary,
-    minWidth: 52,
-    textAlign: 'right',
-    marginLeft: spacing.md,
-  },
-  toggleRow: {
+  settingBlock: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
-  toggleTextWrapper: {
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  settingCopy: {
     flex: 1,
-    marginRight: spacing.lg,
+    gap: spacing.xs / 2,
   },
-  dropdown: {
-    marginTop: spacing.xs,
+  voicePicker: {
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: palette.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.xs,
+    backgroundColor: palette.surfaceMuted,
   },
-  dropdownActive: {
+  voicePickerActive: {
     borderColor: palette.primary,
   },
-  dropdownPressed: {
+  voicePickerPressed: {
     backgroundColor: palette.surfaceElevated,
   },
-  dropdownText: {
-    fontSize: 15,
-    color: palette.textPrimary,
-    fontWeight: typography.labelFontWeight,
-  },
-  dropdownIcon: {
-    marginLeft: spacing.md,
-  },
-  dropdownMenu: {
+  voiceMenu: {
     marginTop: spacing.sm,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: radii.md,
+    borderRadius: spacing.md,
     overflow: 'hidden',
-    backgroundColor: palette.surface,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
   },
-  dropdownOption: {
+  voiceOption: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    backgroundColor: palette.surface,
   },
-  dropdownOptionSelected: {
+  voiceOptionSelected: {
     backgroundColor: palette.primaryMuted,
   },
-  dropdownOptionPressed: {
+  voiceOptionPressed: {
     backgroundColor: palette.surfaceMuted,
   },
   dropdownOptionText: {

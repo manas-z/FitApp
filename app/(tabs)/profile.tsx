@@ -1,47 +1,93 @@
-// app/(tabs)/profile.tsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { signOut } from 'firebase/auth';
 
-import { palette, radii, spacing } from '../../constants/theme';
+import { StyledText } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { ListItem } from '@/components/ui/ListItem';
+import { palette, spacing } from '@/constants/theme';
+import { useFirebase, useUser } from '@/src/firebase';
 
 export default function ProfileScreen() {
+  const { auth } = useFirebase();
+  const { user } = useUser();
+
+  const name =
+    user?.displayName?.trim() ||
+    user?.email?.split('@')[0] ||
+    'Rider';
+  const email = user?.email ?? 'No email provided';
+  const initials = name
+    .split(' ')
+    .map((chunk) => chunk[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleSignOut = () => {
+    void signOut(auth);
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Profile details will go here.</Text>
+    <Screen scrollable={false} inset="all" contentStyle={styles.content}>
+      <Card elevated style={styles.profileCard}>
+        <View style={styles.avatar}>
+          <StyledText variant="title" weight="bold" tone="inverse">
+            {initials}
+          </StyledText>
+        </View>
+        <StyledText variant="title" weight="bold">
+          {name}
+        </StyledText>
+        <StyledText tone="muted">{email}</StyledText>
+        <Button title="Sign out" variant="secondary" onPress={handleSignOut} />
+      </Card>
+
+      <View style={styles.section}>
+        <StyledText variant="subtitle" weight="semibold">
+          Personalization
+        </StyledText>
+
+        <ListItem
+          title="Account"
+          description="Manage your information and security"
+          leading={<View style={styles.iconDot} />}
+        />
+        <ListItem
+          title="Notifications"
+          description="Turn workout reminders on or off"
+          leading={<View style={styles.iconDot} />}
+        />
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: spacing.xl,
+  content: {
+    gap: spacing.xl,
+  },
+  profileCard: {
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: palette.primary,
     justifyContent: 'center',
-    backgroundColor: palette.background,
-  },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
+    alignItems: 'center',
     marginBottom: spacing.sm,
-    color: palette.textPrimary,
   },
-  subtitle: {
-    fontSize: 16,
-    color: palette.textSecondary,
+  section: {
+    gap: spacing.md,
+  },
+  iconDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.primary,
   },
 });

@@ -43,6 +43,10 @@ export default function PlayScheduleScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useUser();
+  const staticTextColor = {
+    lightColor: palette.textPrimary,
+    darkColor: palette.textPrimary,
+  };
 
   const userId = user?.uid ?? '';
   const path =
@@ -464,6 +468,23 @@ export default function PlayScheduleScreen() {
     return mediaType === 'audio' || mediaType === 'video';
   }, [currentStep]);
 
+  const isRestPhase = phase === 'rest';
+  const timerValue = Math.max(
+    0,
+    remainingSeconds ?? (isRestPhase ? restDurationSetting : currentStep?.duration ?? 0),
+  );
+  const timerLabel = formatTime(timerValue);
+  const upcomingStep = upcomingSteps[0];
+  const skipHandler = isRestPhase ? skipRestPeriod : skipCurrentStep;
+  const handleJumpToStep = useCallback(() => {
+    if (phase === 'rest') {
+      skipRestPeriod();
+      return;
+    }
+
+    advanceToNextStep();
+  }, [advanceToNextStep, phase, skipRestPeriod]);
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -527,19 +548,36 @@ export default function PlayScheduleScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <View style={styles.topBarSpacer} />
-          <Text style={styles.screenTitle} numberOfLines={1}>
-            {phase === 'rest' ? 'Rest interval' : 'Active step'}
-          </Text>
+    <Screen
+      scrollable={false}
+      inset="none"
+      style={styles.screen}
+      contentStyle={styles.content}
+    >
+      <View style={styles.playCard}>
+        <View style={styles.cardHeader}>
+          <StyledText variant="caption" {...staticTextColor}>
+            Name: {schedule.title}
+          </StyledText>
+          <StyledText variant="label" weight="bold" {...staticTextColor}>
+            Sprint Number: {currentStepIndex + 1} of {steps.length}
+          </StyledText>
+        </View>
+
+        <View style={styles.previewFrame}>
+          {renderMedia()}
           <Pressable
-            style={styles.closeButton}
-            onPress={() => router.replace('/(tabs)')}
-            accessibilityLabel="Close player"
+            accessibilityRole="button"
+            accessibilityLabel={
+              isRestPhase ? 'Skip rest timer' : 'Skip current step'
+            }
+            onPress={skipHandler}
+            style={({ pressed }) => [
+              styles.skipButton,
+              pressed && styles.skipButtonActive,
+            ]}
           >
-            <Ionicons name="close" size={22} color={palette.textPrimary} />
+            <Ionicons name="play-skip-forward" size={24} color={palette.surface} />
           </Pressable>
         </View>
 
@@ -630,110 +668,16 @@ export default function PlayScheduleScreen() {
             </View>
           </View>
         </View>
-      </Modal>
 
-    </SafeAreaView>
-  );
-}
-
-type ActiveStageProps = {
-  scheduleTitle: string;
-  currentStep: ScheduleStep | undefined;
-  currentStepIndex: number;
-  totalSteps: number;
-  remainingSeconds: number;
-  currentRepeatIndex: number;
-  plannedRepeats: number;
-  upcomingSteps: ScheduleStep[];
-  onTogglePause: () => void;
-  onSkipStep: () => void;
-  onToggleMute: () => void;
-  isPaused: boolean;
-  isAudioMuted: boolean;
-  canMute: boolean;
-  onOpenRepeat: () => void;
-  renderMedia: () => React.ReactNode;
-};
-
-function ActiveStage({
-  scheduleTitle,
-  currentStep,
-  currentStepIndex,
-  totalSteps,
-  remainingSeconds,
-  currentRepeatIndex,
-  plannedRepeats,
-  upcomingSteps,
-  onTogglePause,
-  onSkipStep,
-  onToggleMute,
-  isPaused,
-  isAudioMuted,
-  canMute,
-  onOpenRepeat,
-  renderMedia,
-}: ActiveStageProps) {
-  const nextStep = upcomingSteps[0];
-  const laterStep = upcomingSteps[1];
-
-  return (
-    <>
-      <View style={styles.stageHeaderRow}>
-        <View style={styles.stageHeaderBlock}>
-          <Text style={styles.stageHeaderLabel}>Name</Text>
-          <Text style={styles.stageHeaderValue}>{scheduleTitle}</Text>
-        </View>
-        <View style={styles.stageHeaderBlock}>
-          <Text style={styles.stageHeaderLabel}>Step</Text>
-          <Text style={styles.stageHeaderValue}>
-            {currentStepIndex + 1} / {totalSteps}
-          </Text>
-        </View>
-        <View style={styles.stageTimerBadge}>
-          <Text style={styles.stageTimerValue}>{formatTime(remainingSeconds)}</Text>
-          <Text style={styles.stageTimerSubtitle}>remaining</Text>
-        </View>
-      </View>
-
-      <Text style={styles.currentStepTitle}>
-        {currentStep?.name?.trim() || 'Workout Step'}
-      </Text>
-
-      <View style={styles.mediaWrapper}>
-        {renderMedia()}
-        <Pressable
-          style={styles.skipFloatingButton}
-          onPress={onSkipStep}
-          accessibilityLabel="Skip current step"
-        >
-          <Ionicons name="play-skip-forward" size={26} color={palette.textPrimary} />
-        </Pressable>
-      </View>
-
-      <View style={styles.roundInfoRow}>
-        <Text style={styles.roundInfoText}>
-          Round {currentRepeatIndex} of {plannedRepeats}
-        </Text>
-        <Pressable
-          style={styles.roundAdjustButton}
-          onPress={onOpenRepeat}
-          accessibilityLabel="Adjust repeats for this step"
-        >
-          <Ionicons name="repeat" size={16} color={palette.primary} />
-          <Text style={styles.roundAdjustText}>Change</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.controlRow}>
-        <Pressable
-          style={styles.controlButton}
-          onPress={onTogglePause}
-          accessibilityLabel={isPaused ? 'Resume timer' : 'Pause timer'}
-        >
-          <View
-            style={[
-              styles.controlIconWrap,
-              isPaused && styles.controlIconWrapActive,
+        <View style={styles.controlRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isPaused ? 'Resume timer' : 'Pause timer'}
+            onPress={togglePause}
+            style={({ pressed }) => [
+              styles.circleButton,
+              isPaused && styles.circleButtonPaused,
+              pressed && styles.circleButtonPressed,
             ]}
           >
             <Ionicons
@@ -743,31 +687,17 @@ function ActiveStage({
                 isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
               }
             />
-          </View>
-          <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.controlButton}
-          onPress={onSkipStep}
-          accessibilityLabel="Skip to next step"
-        >
-          <View style={styles.controlIconWrap}>
-            <Ionicons name="play-skip-forward" size={20} color={palette.textPrimary} />
-          </View>
-          <Text style={styles.controlButtonText}>Skip</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.controlButton, !canMute && styles.controlButtonDisabled]}
-          onPress={onToggleMute}
-          disabled={!canMute}
-          accessibilityLabel={
-            isAudioMuted ? 'Unmute step audio' : 'Mute step audio'
-          }
-        >
-          <View
-            style={[
-              styles.controlIconWrap,
-              isAudioMuted && styles.controlIconWrapActive,
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mute background audio"
+            disabled={!canMuteMedia}
+            onPress={toggleMute}
+            style={({ pressed }) => [
+              styles.muteButton,
+              !canMuteMedia && styles.muteButtonDisabled,
+              pressed && styles.muteButtonPressed,
+              isAudioMuted && styles.muteButtonActive,
             ]}
           >
             <Ionicons
@@ -781,92 +711,7 @@ function ActiveStage({
                     : palette.textMuted
               }
             />
-          </View>
-          <Text
-            style={[
-              styles.controlButtonText,
-              !canMute && styles.controlButtonTextDisabled,
-            ]}
-          >
-            {isAudioMuted ? 'Muted' : 'Mute'}
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.upcomingSection}>
-        <Text style={styles.upNextHeading}>Up next</Text>
-        {nextStep ? (
-          <View style={styles.upNextCard}>
-            <View style={styles.upNextContext}>
-              <Text style={styles.upNextTitle}>
-                {nextStep.name?.trim() || 'Next step'}
-              </Text>
-              <Text style={styles.upNextMeta}>
-                {formatTime(nextStep.duration ?? 0)} · Step {currentStepIndex + 2}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
-          </View>
-        ) : (
-          <Text style={styles.upcomingEmpty}>
-            You're on the final step of this schedule.
-          </Text>
-        )}
-        {laterStep ? (
-          <Text style={styles.upcomingLater}>
-            Following: {laterStep.name?.trim() || 'Upcoming step'} ·{' '}
-            {formatTime(laterStep.duration ?? 0)}
-          </Text>
-        ) : null}
-      </View>
-    </>
-  );
-}
-
-type RestStageProps = {
-  scheduleTitle: string;
-  remainingSeconds: number;
-  onExtend: () => void;
-  restContext: 'betweenRepeats' | 'betweenSteps' | null;
-  nextStep: ScheduleStep | undefined;
-  currentRepeatIndex: number;
-  plannedRepeats: number;
-  onTogglePause: () => void;
-  isPaused: boolean;
-  onSkipRest: () => void;
-};
-
-function RestStage({
-  scheduleTitle,
-  remainingSeconds,
-  onExtend,
-  restContext,
-  nextStep,
-  currentRepeatIndex,
-  plannedRepeats,
-  onTogglePause,
-  isPaused,
-  onSkipRest,
-}: RestStageProps) {
-  const isBetweenRepeats = restContext === 'betweenRepeats';
-  const nextRepeatIndex = Math.min(plannedRepeats, currentRepeatIndex + 1);
-
-  return (
-    <>
-      <View style={styles.stageHeaderRow}>
-        <View style={styles.stageHeaderBlock}>
-          <Text style={styles.stageHeaderLabel}>Name</Text>
-          <Text style={styles.stageHeaderValue}>{scheduleTitle}</Text>
-        </View>
-        <View style={styles.stageHeaderBlock}>
-          <Text style={styles.stageHeaderLabel}>Context</Text>
-          <Text style={styles.stageHeaderValue}>
-            {isBetweenRepeats ? 'Between rounds' : 'Between steps'}
-          </Text>
-        </View>
-        <View style={styles.stageTimerBadge}>
-          <Text style={styles.stageTimerValue}>{formatTime(remainingSeconds)}</Text>
-          <Text style={styles.stageTimerSubtitle}>remaining</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -922,48 +767,35 @@ function RestStage({
                 : 'Schedule complete'}
           </Text>
         </View>
-        <Pressable
-          style={styles.skipRestButton}
-          onPress={onSkipRest}
-          accessibilityLabel="Skip rest"
-        >
-          <Text style={styles.skipRestText}>Skip rest</Text>
-        </Pressable>
       </View>
-    </>
+    </Screen>
   );
 }
 
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  container: {
+  safeArea: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 16,
+    backgroundColor: palette.background,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    padding: spacing.xl,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: palette.background,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  topBarSpacer: { width: 48 },
-  screenTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  topBarSpacer: {
+    width: spacing.md,
   },
   scheduleTitle: {
     flex: 1,
@@ -971,7 +803,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: palette.textPrimary,
-    paddingHorizontal: 12,
   },
   closeButton: {
     width: 36,
@@ -981,87 +812,77 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stageCard: {
+  screen: {
     backgroundColor: palette.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: palette.border,
-    shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    gap: 16,
   },
-  stageHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  stageHeaderBlock: { flex: 1, gap: 4 },
-  stageHeaderLabel: {
-    fontSize: 11,
-    color: palette.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  stageHeaderValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    lineHeight: 18,
-    flexWrap: 'wrap',
-    flexShrink: 1,
-  },
-  stageTimerBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: palette.primaryMuted,
-    alignItems: 'center',
-    minWidth: 88,
-    gap: 2,
-  },
-  stageTimerValue: { fontSize: 16, fontWeight: '700', color: palette.textPrimary },
-  stageTimerSubtitle: {
-    fontSize: 11,
-    color: palette.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  currentStepTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    lineHeight: 24,
-  },
-  mediaWrapper: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: palette.border,
-    height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  mediaPlaceholder: {
+  content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl,
+    gap: spacing.xl,
   },
-  mediaPlaceholderText: { fontSize: 14, color: palette.textMuted },
-  mediaImage: { width: '100%', height: '100%' },
-  mediaVideo: { width: '100%', height: '100%', backgroundColor: '#000' },
+  playCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: palette.surfaceElevated,
+    borderRadius: 32,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: palette.border,
+    shadowColor: palette.shadowStrong,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
+    alignItems: 'stretch',
+    position: 'relative',
+  },
+  cardHeader: {
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  previewFrame: {
+    height: 380,
+    borderRadius: 28,
+    backgroundColor: palette.surfaceMuted,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    position: 'relative',
+  },
+  mediaContainer: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: palette.surfaceMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: palette.primaryMuted,
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  mediaVideo: {
+    width: '100%',
+    height: '100%',
+  },
   mediaAudio: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 24,
+    gap: spacing.md,
   },
   mediaAudioText: {
     fontSize: 15,
@@ -1069,123 +890,95 @@ const styles = StyleSheet.create({
     color: palette.textPrimary,
     textAlign: 'center',
   },
-  mediaAudioMuted: { fontSize: 12, color: palette.textMuted },
-  skipFloatingButton: {
-    position: 'absolute',
-    right: 12,
-    top: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  mediaAudioMuted: {
+    fontSize: 12,
+    color: palette.textMuted,
+  },
+  mediaPlaceholder: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.md,
+  },
+  mediaPlaceholderText: {
+    fontSize: 14,
+    color: palette.textMuted,
+  },
+  timerBadge: {
+    position: 'absolute',
+    top: -26,
+    right: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: palette.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: palette.border,
     shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  roundInfoRow: {
-    flexDirection: 'row',
+  skipButton: {
+    position: 'absolute',
+    right: spacing.lg,
+    top: '50%',
+    transform: [{ translateY: -28 }],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  roundInfoText: { fontSize: 13, fontWeight: '600', color: palette.textPrimary },
-  roundAdjustButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: palette.primaryMuted,
+  skipButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
-  roundAdjustText: { fontSize: 12, fontWeight: '600', color: palette.primary },
   controlRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 4,
-  },
-  controlButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-  },
-  controlButtonDisabled: { opacity: 0.5 },
-  controlIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.lg,
   },
-  controlIconWrapActive: { backgroundColor: palette.primary },
-  controlButtonText: { fontSize: 12, fontWeight: '600', color: palette.textPrimary },
-  controlButtonTextDisabled: { color: palette.textMuted },
-  upcomingSection: {
-    backgroundColor: palette.surfaceElevated,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  upNextHeading: { fontSize: 14, fontWeight: '600', color: palette.textPrimary },
-  upNextCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  circleButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: palette.surface,
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  upNextContext: { flex: 1, marginRight: 12 },
-  upNextTitle: { fontSize: 15, fontWeight: '600', color: palette.textPrimary },
-  upNextMeta: { fontSize: 12, color: palette.textMuted, marginTop: 4 },
-  upcomingEmpty: { fontSize: 13, color: palette.textMuted },
-  upcomingLater: { fontSize: 12, color: palette.textMuted },
-  restMainDisplay: {
+    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: palette.primaryMuted,
-    paddingVertical: 20,
-    gap: 8,
   },
-  restTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  restTimerLarge: { fontSize: 60, fontWeight: '700', color: palette.textPrimary },
-  restTimerCaption: { fontSize: 13, color: palette.textSecondary },
-  restStageMessage: {
-    fontSize: 13,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  extendButton: {
-    marginTop: 8,
+  circleButtonPaused: {
     backgroundColor: palette.primary,
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 6,
+    borderColor: palette.primary,
+  },
+  circleButtonPressed: {
+    opacity: 0.8,
+  },
+  muteButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#c92a2a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  muteButtonPressed: {
+    opacity: 0.8,
+  },
+  muteButtonActive: {
+    backgroundColor: '#a52a2a',
+  },
+  muteButtonDisabled: {
+    opacity: 0.4,
   },
   extendButtonText: {
     color: PRIMARY_BUTTON_TEXT_COLOR,
@@ -1195,17 +988,13 @@ const styles = StyleSheet.create({
   restFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
   },
-  restControlButton: {
+  footerRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: palette.primary,
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   restControlText: {
     fontSize: 12,
@@ -1224,83 +1013,38 @@ const styles = StyleSheet.create({
     elevation: 2,
     gap: 4,
   },
-  restNextLabel: {
-    fontSize: 11,
-    color: palette.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+  footerActions: {
+    gap: spacing.xs,
+    alignItems: 'flex-end',
   },
-  restNextValue: { fontSize: 15, fontWeight: '700', color: palette.textPrimary },
-  restNextMeta: { fontSize: 12, color: palette.textMuted },
-  skipRestButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+  footerButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  footerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: palette.border,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: palette.surface,
   },
-  skipRestText: { fontSize: 12, fontWeight: '600', color: palette.primary },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+  footerButtonPressed: {
+    opacity: 0.7,
   },
-  modalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: palette.surface,
-    borderRadius: 24,
-    padding: 24,
-    gap: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: palette.textPrimary },
-  modalSubtitle: { fontSize: 13, color: palette.textSecondary },
-  modalControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-  },
-  modalControlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalControlSecondary: {
-    backgroundColor: palette.surfaceMuted,
-  },
-  modalControlPrimary: {
-    backgroundColor: palette.primary,
-  },
-  modalCount: {
-    fontSize: 24,
+  errorTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: palette.textPrimary,
-    minWidth: 40,
+    marginTop: 16,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: palette.textSecondary,
     textAlign: 'center',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  modalCancel: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: palette.border,
-  },
-  modalCancelText: { color: palette.textPrimary, fontWeight: '600' },
-  modalConfirm: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: palette.primary,
+    marginTop: 8,
   },
   modalConfirmText: { color: PRIMARY_BUTTON_TEXT_COLOR, fontWeight: '700' },
   primaryButton: {
@@ -1330,7 +1074,17 @@ const styles = StyleSheet.create({
     marginTop: 32,
     gap: 12,
   },
-  completionTitle: { fontSize: 24, fontWeight: '700', color: palette.textPrimary },
-  completionMessage: { fontSize: 14, color: palette.textSecondary, textAlign: 'center' },
-  completionButton: { marginTop: 12 },
+  completionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  completionMessage: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+  },
+  completionButton: {
+    marginTop: 12,
+  },
 });

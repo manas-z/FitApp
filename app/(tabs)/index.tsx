@@ -2,7 +2,6 @@
 import { useMemo, useState } from 'react';
 import {
   View,
-  Text,
   Pressable,
   StyleSheet,
   FlatList,
@@ -11,15 +10,19 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 import { signOut } from 'firebase/auth';
 import { deleteDoc, doc } from 'firebase/firestore';
-import { useFirebase, useUser, useCollection } from '../../src/firebase';
-import type { Schedule, ScheduleStepMedia } from '../../src/lib/types';
+import { Screen } from '@/components/Screen';
+import { StyledText } from '@/components/StyledText';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { palette, radii, spacing } from '@/constants/theme';
+import { useFirebase, useUser, useCollection } from '@/src/firebase';
+import type { Schedule, ScheduleStepMedia } from '@/src/lib/types';
 
 const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 const PRIMARY_DARK_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primaryDark);
@@ -149,25 +152,29 @@ export default function DashboardScreen() {
     const stepsCount = item.steps?.length ?? 0;
 
     return (
-      <View style={styles.card}>
+      <Card padding="md" style={styles.card}>
         <View style={styles.mediaContainer}>{renderMediaPreview(media)}</View>
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
+          <StyledText variant="subtitle" weight="semibold" numberOfLines={1}>
+            {item.title}
+          </StyledText>
           {item.description ? (
-            <Text style={styles.cardDescription} numberOfLines={1}>
+            <StyledText tone="muted" numberOfLines={1}>
               {item.description}
-            </Text>
+            </StyledText>
           ) : null}
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
               <Feather name="clock" size={14} color={palette.textSecondary} />
-              <Text style={styles.metaText}>{durationLabel}</Text>
+              <StyledText variant="caption" tone="muted">
+                {durationLabel}
+              </StyledText>
             </View>
             <View style={styles.metaItem}>
               <Feather name="list" size={14} color={palette.textSecondary} />
-              <Text style={styles.metaText}>
+              <StyledText variant="caption" tone="muted">
                 {stepsCount} step{stepsCount === 1 ? '' : 's'}
-              </Text>
+              </StyledText>
             </View>
           </View>
         </View>
@@ -184,10 +191,10 @@ export default function DashboardScreen() {
             style={styles.iconButton}
             onPress={() => handleOpenMenu(item)}
           >
-            <Ionicons name="menu" size={18} color={palette.primaryDark} />
+            <Ionicons name="ellipsis-horizontal" size={18} color={palette.primaryDark} />
           </Pressable>
         </View>
-      </View>
+      </Card>
     );
   };
 
@@ -215,39 +222,42 @@ export default function DashboardScreen() {
             <Text style={styles.newButtonText}>New</Text>
           </Pressable>
         </View>
-
-        {isLoading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="small" color={palette.primary} />
-          </View>
-        ) : (
-          <FlatList
-            data={sortedSchedules}
-            keyExtractor={(item) => item.id}
-            renderItem={renderScheduleCard}
-            contentContainerStyle={
-              sortedSchedules.length === 0 ? styles.emptyList : styles.listContent
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No schedules yet</Text>
-                <Text style={styles.emptyMessage}>
-                  Create your first schedule to see it listed here.
-                </Text>
-              </View>
-            }
-          />
-        )}
-
-        <Pressable
-          style={styles.logoutButton}
-          onPress={() => {
-            signOut(auth);
-          }}
-        >
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
+        <Button
+          title="New schedule"
+          leftIcon={<Feather name="plus" size={16} color={palette.surface} />}
+          onPress={() => router.push('/(tabs)/schedules/new')}
+        />
       </View>
+
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="small" color={palette.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={sortedSchedules}
+          keyExtractor={(item) => item.id}
+          renderItem={renderScheduleCard}
+          contentContainerStyle={[
+            styles.listContent,
+            sortedSchedules.length === 0 && styles.emptyList,
+          ]}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="bicycle" size={42} color={palette.textMuted} />
+              <StyledText variant="subtitle" weight="semibold">
+                No schedules yet
+              </StyledText>
+              <StyledText tone="muted" style={styles.emptyMessage}>
+                Tap "New schedule" to build your first ride.
+              </StyledText>
+            </View>
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      <Button title="Log out" variant="ghost" onPress={() => signOut(auth)} />
 
       <Modal
         visible={menuVisible}
@@ -260,36 +270,34 @@ export default function DashboardScreen() {
           <View style={styles.menuCard}>
             <Pressable style={styles.menuItem} onPress={handleEdit}>
               <Feather name="edit-2" size={16} color={palette.primaryDark} />
-              <Text style={styles.menuItemText}>Edit schedule</Text>
+              <StyledText weight="medium">Edit schedule</StyledText>
             </Pressable>
             <Pressable style={styles.menuItem} onPress={handleDelete}>
               <Feather name="trash-2" size={16} color={palette.danger} />
-              <Text style={[styles.menuItemText, styles.menuDeleteText]}>Delete schedule</Text>
+              <StyledText weight="medium" style={styles.menuDeleteText}>
+                Delete schedule
+              </StyledText>
             </Pressable>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  container: {
-    flex: 1,
+  content: {
+    flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
-    backgroundColor: palette.background,
+    gap: spacing.lg,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.xl,
+    gap: spacing.lg,
   },
   headerTextGroup: {
     flex: 1,
@@ -348,39 +356,24 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    marginBottom: spacing.xs,
+    gap: spacing.sm,
   },
   emptyMessage: {
-    fontSize: 14,
-    color: palette.textSecondary,
     textAlign: 'center',
-    maxWidth: 220,
+    maxWidth: 240,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surface,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   mediaContainer: {
-    width: 72,
-    height: 72,
+    width: 82,
+    height: 82,
     borderRadius: radii.lg,
     overflow: 'hidden',
     backgroundColor: palette.surfaceMuted,
-    marginRight: spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -407,46 +400,27 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  cardDescription: {
-    fontSize: 13,
-    color: palette.textSecondary,
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    columnGap: spacing.lg,
+    columnGap: spacing.md,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  metaText: {
-    marginLeft: spacing.xs,
-    fontSize: 13,
-    color: palette.textMuted,
-    fontWeight: '500',
+    gap: spacing.xs / 2,
   },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: spacing.md,
+    gap: spacing.xs,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: palette.surfaceMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: spacing.sm,
+    width: 36,
+    height: 36,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: palette.border,
   },
@@ -472,35 +446,22 @@ const styles = StyleSheet.create({
   menuOverlay: {
     flex: 1,
     backgroundColor: palette.overlay,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingHorizontal: spacing.xl,
-    paddingTop: 72,
-    paddingBottom: spacing.xl,
+    justifyContent: 'flex-end',
+    padding: spacing.xl,
   },
   menuCard: {
     backgroundColor: palette.surface,
     borderRadius: radii.lg,
-    paddingVertical: spacing.xs,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
     borderWidth: 1,
     borderColor: palette.border,
+    paddingVertical: spacing.xs,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-  },
-  menuItemText: {
-    marginLeft: spacing.sm,
-    fontSize: 15,
-    fontWeight: '500',
-    color: palette.textPrimary,
   },
   menuDeleteText: {
     color: palette.danger,

@@ -4,18 +4,15 @@ import { StyleSheet, View } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-
-import { StyledText } from '@/components/StyledText';
-import { Screen } from '@/components/Screen';
-import { Button } from '@/components/ui/Button';
-import { TextField } from '@/components/ui/TextField';
-import { palette, spacing } from '@/constants/theme';
-import { useFirebase } from '@/src/firebase';
+import { useFirebase } from '../../src/firebase';
+import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 
 type FormValues = {
   email: string;
   password: string;
 };
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -103,9 +100,34 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
-    shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 16 },
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: palette.surface,
+    color: palette.textPrimary,
+    fontSize: 16,
+  },
+  button: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    backgroundColor: palette.primary,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  buttonText: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  link: {
+    marginTop: spacing.lg,
+    textAlign: 'center',
+    color: palette.textSecondary,
+    fontWeight: '600',
   },
 });

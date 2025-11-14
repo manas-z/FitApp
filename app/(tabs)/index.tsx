@@ -13,6 +13,7 @@ import {
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 import { signOut } from 'firebase/auth';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { Screen } from '@/components/Screen';
@@ -22,6 +23,9 @@ import { Card } from '@/components/ui/Card';
 import { palette, radii, spacing } from '@/constants/theme';
 import { useFirebase, useUser, useCollection } from '@/src/firebase';
 import type { Schedule, ScheduleStepMedia } from '@/src/lib/types';
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
+const PRIMARY_DARK_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primaryDark);
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -195,18 +199,28 @@ export default function DashboardScreen() {
   };
 
   return (
-    <Screen scrollable={false} inset="none" contentStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerTextGroup}>
-          <StyledText variant="label" tone="muted">
-            Hey {name},
-          </StyledText>
-          <StyledText variant="title" weight="bold">
-            Your schedules
-          </StyledText>
-          <StyledText tone="muted">
-            Select a plan to get rolling.
-          </StyledText>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextGroup}>
+            <Text style={styles.greeting}>Hello, {name}</Text>
+            <Text style={styles.subtitle}>Your Schedules</Text>
+            <Text style={styles.helperText}>
+              Select a schedule to start your workout.
+            </Text>
+          </View>
+          <Pressable
+            style={styles.newButton}
+            onPress={() => router.push('/(tabs)/schedules/new')}
+          >
+            <Feather
+              name="plus"
+              size={18}
+              color={PRIMARY_BUTTON_TEXT_COLOR}
+              style={styles.newIcon}
+            />
+            <Text style={styles.newButtonText}>New</Text>
+          </Pressable>
         </View>
         <Button
           title="New schedule"
@@ -287,7 +301,45 @@ const styles = StyleSheet.create({
   },
   headerTextGroup: {
     flex: 1,
-    gap: spacing.xs,
+    marginRight: spacing.lg,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  helperText: {
+    fontSize: 14,
+    color: palette.textSecondary,
+  },
+  newButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: palette.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    elevation: 2,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  newIcon: {
+    marginRight: spacing.xs,
+  },
+  newButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+    letterSpacing: 0.2,
   },
   loadingState: {
     flex: 1,
@@ -371,9 +423,25 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: palette.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: palette.surfaceMuted,
+  },
+  logoutButton: {
+    marginTop: spacing.lg,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: palette.primaryDark,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  logoutText: {
+    color: PRIMARY_DARK_BUTTON_TEXT_COLOR,
+    fontWeight: '600',
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
   menuOverlay: {
     flex: 1,

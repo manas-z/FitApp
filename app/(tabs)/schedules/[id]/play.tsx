@@ -28,9 +28,9 @@ import {
   DEFAULT_REST_DURATION_SECONDS,
   REST_DURATION_STORAGE_KEY,
 } from '../../../../constants/settings';
-import { palette, spacing } from '../../../../constants/theme';
-import { Screen } from '@/components/Screen';
-import { StyledText } from '@/components/StyledText';
+import { palette, getReadableTextColor } from '../../../../constants/theme';
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
 function formatTime(seconds: number) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -579,10 +579,93 @@ export default function PlayScheduleScreen() {
           >
             <Ionicons name="play-skip-forward" size={24} color={palette.surface} />
           </Pressable>
-          <View style={styles.timerBadge}>
-            <StyledText variant="title" weight="bold" {...staticTextColor}>
-              {Math.ceil(timerValue)}
-            </StyledText>
+        </View>
+
+        <View style={styles.stageCard}>
+          {phase === 'rest' ? (
+            <RestStage
+              scheduleTitle={schedule.title}
+              remainingSeconds={remainingSeconds ?? 0}
+              onExtend={extendRest}
+              restContext={restContext}
+              nextStep={
+                restContext === 'betweenRepeats'
+                  ? currentStep
+                  : steps[currentStepIndex + 1]
+              }
+              currentRepeatIndex={currentRepeatIndex}
+              plannedRepeats={plannedRepeats}
+              onTogglePause={togglePause}
+              isPaused={isPaused}
+              onSkipRest={skipRestPeriod}
+            />
+          ) : (
+            <ActiveStage
+              scheduleTitle={schedule.title}
+              currentStep={currentStep}
+              currentStepIndex={currentStepIndex}
+              totalSteps={steps.length}
+              remainingSeconds={remainingSeconds ?? 0}
+              currentRepeatIndex={currentRepeatIndex}
+              plannedRepeats={plannedRepeats}
+              upcomingSteps={upcomingSteps}
+              onTogglePause={togglePause}
+              onSkipStep={skipCurrentStep}
+              onToggleMute={toggleMute}
+              isPaused={isPaused}
+              isAudioMuted={isAudioMuted}
+              canMute={canMuteMedia}
+              onOpenRepeat={openRepeatModal}
+              renderMedia={renderMedia}
+            />
+          )}
+        </View>
+      </View>
+
+      <Modal
+        visible={repeatModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRepeatModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Repeat this step</Text>
+            <Text style={styles.modalSubtitle}>
+              Choose how many times to loop "
+              {currentStep?.name?.trim() || 'Workout Step'}".
+            </Text>
+            <View style={styles.modalControls}>
+              <Pressable
+                style={[styles.modalControlButton, styles.modalControlSecondary]}
+                onPress={() =>
+                  setPendingRepeat((prev) => Math.max(1, prev - 1))
+                }
+                accessibilityLabel="Decrease repeats"
+              >
+                <Ionicons name="remove" size={22} color={palette.textPrimary} />
+              </Pressable>
+              <Text style={styles.modalCount}>{pendingRepeat}</Text>
+              <Pressable
+                style={[styles.modalControlButton, styles.modalControlPrimary]}
+                onPress={() => setPendingRepeat((prev) => prev + 1)}
+                accessibilityLabel="Increase repeats"
+              >
+                <Ionicons
+                  name="add"
+                  size={22}
+                  color={PRIMARY_BUTTON_TEXT_COLOR}
+                />
+              </Pressable>
+            </View>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancel} onPress={closeRepeatModal}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalConfirm} onPress={confirmRepeat}>
+                <Text style={styles.modalConfirmText}>Save</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -599,8 +682,10 @@ export default function PlayScheduleScreen() {
           >
             <Ionicons
               name={isPaused ? 'play' : 'pause'}
-              size={28}
-              color={isPaused ? palette.surface : palette.primary}
+              size={20}
+              color={
+                isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
+              }
             />
           </Pressable>
           <Pressable
@@ -618,49 +703,69 @@ export default function PlayScheduleScreen() {
             <Ionicons
               name={isAudioMuted ? 'volume-mute' : 'volume-high'}
               size={20}
-              color={palette.surface}
+              color={
+                isAudioMuted
+                  ? PRIMARY_BUTTON_TEXT_COLOR
+                  : canMute
+                    ? palette.textPrimary
+                    : palette.textMuted
+              }
             />
           </Pressable>
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <StyledText variant="label" weight="bold" {...staticTextColor}>
-          Upcoming
-        </StyledText>
-        <View style={styles.footerRow}>
-          <View style={styles.footerColumn}>
-            <StyledText {...staticTextColor}>
-              Rest - {restDurationSetting}s
-            </StyledText>
-            <StyledText {...staticTextColor}>
-              {upcomingStep ? upcomingStep.title : 'No upcoming step'}
-            </StyledText>
-          </View>
-          <View style={styles.footerButtons}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Jump to next step"
-              onPress={handleJumpToStep}
-              style={({ pressed }) => [
-                styles.footerIconButton,
-                pressed && styles.footerButtonPressed,
-              ]}
-            >
-              <Ionicons name="play-forward" size={20} color={palette.textPrimary} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Skip this step"
-              onPress={skipHandler}
-              style={({ pressed }) => [
-                styles.footerIconButton,
-                pressed && styles.footerButtonPressed,
-              ]}
-            >
-              <Ionicons name="play-skip-forward" size={20} color={palette.textPrimary} />
-            </Pressable>
-          </View>
+      <View style={styles.restMainDisplay}>
+        <Text style={styles.restTitle}>Rest</Text>
+        <Text style={styles.restTimerLarge}>{Math.max(remainingSeconds, 0)}</Text>
+        <Text style={styles.restTimerCaption}>seconds remaining</Text>
+        <Text style={styles.restStageMessage}>
+          {isBetweenRepeats
+            ? `Next round ${nextRepeatIndex} of ${plannedRepeats}`
+            : nextStep
+              ? `Up next: ${nextStep.name?.trim() || 'Next step'}`
+              : 'Great work! This is your final rest interval.'}
+        </Text>
+        <Pressable
+          style={styles.extendButton}
+          onPress={onExtend}
+          accessibilityLabel="Add fifteen seconds"
+        >
+          <Text style={styles.extendButtonText}>+ 15 sec</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.restFooterRow}>
+        <Pressable
+          style={styles.restControlButton}
+          onPress={onTogglePause}
+          accessibilityLabel={
+            isPaused ? 'Resume rest timer' : 'Pause rest timer'
+          }
+        >
+          <Ionicons
+            name={isPaused ? 'play' : 'pause'}
+            size={18}
+            color={
+              isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
+            }
+          />
+          <Text style={styles.restControlText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+        </Pressable>
+        <View style={styles.restNextBlock}>
+          <Text style={styles.restNextLabel}>Next</Text>
+          <Text style={styles.restNextValue}>
+            {isBetweenRepeats
+              ? `Round ${nextRepeatIndex}`
+              : nextStep?.name?.trim() || 'Final step'}
+          </Text>
+          <Text style={styles.restNextMeta}>
+            {isBetweenRepeats
+              ? `of ${plannedRepeats}`
+              : nextStep
+                ? formatTime(nextStep.duration ?? 0)
+                : 'Schedule complete'}
+          </Text>
         </View>
       </View>
     </Screen>
@@ -875,10 +980,13 @@ const styles = StyleSheet.create({
   muteButtonDisabled: {
     opacity: 0.4,
   },
-  footer: {
-    alignSelf: 'stretch',
-    marginTop: spacing.sm,
-    gap: spacing.sm,
+  extendButtonText: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  restFooterRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   footerRow: {
@@ -888,8 +996,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.md,
   },
-  footerColumn: {
-    gap: spacing.xs,
+  restControlText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+  },
+  restNextBlock: {
+    flex: 1,
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: palette.shadowStrong,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    gap: 4,
   },
   footerActions: {
     gap: spacing.xs,
@@ -924,6 +1046,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  modalConfirmText: { color: PRIMARY_BUTTON_TEXT_COLOR, fontWeight: '700' },
   primaryButton: {
     marginTop: 20,
     backgroundColor: palette.primary,
@@ -932,9 +1055,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   primaryButtonText: {
-    color: palette.surface,
+    color: PRIMARY_BUTTON_TEXT_COLOR,
     fontWeight: '700',
     fontSize: 15,
+  },
+  errorTitle: { fontSize: 22, fontWeight: '700', color: palette.textPrimary, marginTop: 16 },
+  errorMessage: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
   },
   completionCard: {
     backgroundColor: palette.surface,

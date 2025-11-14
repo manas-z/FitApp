@@ -11,9 +11,17 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
   DEFAULT_REST_DURATION_SECONDS,
-  REST_DURATION_STORAGE_KEY,
-} from '@/constants/settings';
-import { palette, spacing } from '@/constants/theme';
+} from '../../constants/settings';
+import {
+  palette,
+  radii,
+  spacing,
+  typography,
+  getReadableTextColor,
+} from '../../constants/theme';
+
+const SAVE_BUTTON_BACKGROUND = palette.accent;
+const SAVE_BUTTON_TEXT_COLOR = getReadableTextColor(SAVE_BUTTON_BACKGROUND);
 
 const VOICES = ['Male Voice 1', 'Female Voice 1', 'Neutral Voice'];
 
@@ -323,5 +331,35 @@ const styles = StyleSheet.create({
   },
   voiceOptionPressed: {
     backgroundColor: palette.surfaceMuted,
+  },
+  dropdownOptionText: {
+    fontSize: 15,
+    color: palette.textPrimary,
+  },
+  dropdownOptionTextSelected: {
+    fontWeight: '700',
+    color: palette.primary,
+  },
+  saveButton: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+    backgroundColor: SAVE_BUTTON_BACKGROUND,
+    paddingHorizontal: spacing.xl + spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  saveButtonPressed: {
+    backgroundColor: palette.accentDark,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: SAVE_BUTTON_TEXT_COLOR,
+    letterSpacing: 0.3,
   },
 });

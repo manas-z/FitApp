@@ -17,7 +17,16 @@ import {
   REST_DURATION_STORAGE_KEY,
   DEFAULT_REST_DURATION_SECONDS,
 } from '../../constants/settings';
-import { palette, radii, spacing, typography } from '../../constants/theme';
+import {
+  palette,
+  radii,
+  spacing,
+  typography,
+  getReadableTextColor,
+} from '../../constants/theme';
+
+const SAVE_BUTTON_BACKGROUND = palette.accent;
+const SAVE_BUTTON_TEXT_COLOR = getReadableTextColor(SAVE_BUTTON_BACKGROUND);
 
 const VOICES = ['Male Voice 1', 'Female Voice 1', 'Neutral Voice'];
 
@@ -399,7 +408,7 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.md,
     alignSelf: 'flex-start',
-    backgroundColor: palette.accent,
+    backgroundColor: SAVE_BUTTON_BACKGROUND,
     paddingHorizontal: spacing.xl + spacing.sm,
     paddingVertical: spacing.md,
     borderRadius: radii.md,
@@ -410,12 +419,12 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   saveButtonPressed: {
-    backgroundColor: palette.accentMuted,
+    backgroundColor: palette.accentDark,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: palette.surface,
+    color: SAVE_BUTTON_TEXT_COLOR,
     letterSpacing: 0.3,
   },
 });

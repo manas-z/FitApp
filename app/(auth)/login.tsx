@@ -11,12 +11,14 @@ import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useFirebase } from '../../src/firebase';
-import { palette, radii, spacing } from '../../constants/theme';
+import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 
 type FormValues = {
   email: string;
   password: string;
 };
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -118,7 +120,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   buttonText: {
-    color: palette.surface,
+    color: PRIMARY_BUTTON_TEXT_COLOR,
     fontWeight: '700',
     letterSpacing: 0.3,
   },

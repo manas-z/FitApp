@@ -15,11 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { palette, radii, spacing } from '../../constants/theme';
+import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 import { signOut } from 'firebase/auth';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useFirebase, useUser, useCollection } from '../../src/firebase';
 import type { Schedule, ScheduleStepMedia } from '../../src/lib/types';
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
+const PRIMARY_DARK_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primaryDark);
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -206,7 +209,7 @@ export default function DashboardScreen() {
             <Feather
               name="plus"
               size={18}
-              color={palette.surface}
+              color={PRIMARY_BUTTON_TEXT_COLOR}
               style={styles.newIcon}
             />
             <Text style={styles.newButtonText}>New</Text>
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
   newButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.surface,
+    color: PRIMARY_BUTTON_TEXT_COLOR,
     letterSpacing: 0.2,
   },
   loadingState: {
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logoutText: {
-    color: palette.surface,
+    color: PRIMARY_DARK_BUTTON_TEXT_COLOR,
     fontWeight: '600',
     fontSize: 15,
     letterSpacing: 0.3,

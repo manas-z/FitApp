@@ -30,7 +30,9 @@ import { Picker } from '@react-native-picker/picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ScheduleFormValues } from './types';
 import type { ScheduleStepMedia } from '../../src/lib/types';
-import { palette } from '../../constants/theme';
+import { palette, getReadableTextColor } from '../../constants/theme';
+
+const PRIMARY_ACTION_TEXT_COLOR = getReadableTextColor(palette.primaryDark);
 
 type ScheduleBuilderProps = {
   control: Control<ScheduleFormValues>;
@@ -1534,7 +1536,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: palette.surface,
+    color: PRIMARY_ACTION_TEXT_COLOR,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -1662,7 +1664,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalActionPrimaryText: {
-    color: palette.surface,
+    color: PRIMARY_ACTION_TEXT_COLOR,
     fontWeight: '700',
   },
 });

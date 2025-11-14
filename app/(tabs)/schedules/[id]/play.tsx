@@ -28,7 +28,9 @@ import {
   DEFAULT_REST_DURATION_SECONDS,
   REST_DURATION_STORAGE_KEY,
 } from '../../../../constants/settings';
-import { palette } from '../../../../constants/theme';
+import { palette, getReadableTextColor } from '../../../../constants/theme';
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
 function formatTime(seconds: number) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -611,7 +613,11 @@ export default function PlayScheduleScreen() {
                 onPress={() => setPendingRepeat((prev) => prev + 1)}
                 accessibilityLabel="Increase repeats"
               >
-                <Ionicons name="add" size={22} color={palette.surface} />
+                <Ionicons
+                  name="add"
+                  size={22}
+                  color={PRIMARY_BUTTON_TEXT_COLOR}
+                />
               </Pressable>
             </View>
             <View style={styles.modalActions}>
@@ -733,7 +739,9 @@ function ActiveStage({
             <Ionicons
               name={isPaused ? 'play' : 'pause'}
               size={20}
-              color={isPaused ? palette.surface : palette.textPrimary}
+              color={
+                isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
+              }
             />
           </View>
           <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
@@ -766,7 +774,11 @@ function ActiveStage({
               name={isAudioMuted ? 'volume-mute' : 'volume-high'}
               size={20}
               color={
-                isAudioMuted ? palette.surface : canMute ? palette.textPrimary : palette.textMuted
+                isAudioMuted
+                  ? PRIMARY_BUTTON_TEXT_COLOR
+                  : canMute
+                    ? palette.textPrimary
+                    : palette.textMuted
               }
             />
           </View>
@@ -889,7 +901,9 @@ function RestStage({
           <Ionicons
             name={isPaused ? 'play' : 'pause'}
             size={18}
-            color={isPaused ? palette.surface : palette.textPrimary}
+            color={
+              isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
+            }
           />
           <Text style={styles.restControlText}>{isPaused ? 'Resume' : 'Pause'}</Text>
         </Pressable>
@@ -1173,7 +1187,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 6,
   },
-  extendButtonText: { color: palette.surface, fontWeight: '700', fontSize: 13 },
+  extendButtonText: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+    fontWeight: '700',
+    fontSize: 13,
+  },
   restFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1189,7 +1207,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: palette.primary,
   },
-  restControlText: { fontSize: 12, fontWeight: '600', color: palette.surface },
+  restControlText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+  },
   restNextBlock: {
     flex: 1,
     backgroundColor: palette.surface,
@@ -1280,7 +1302,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: palette.primary,
   },
-  modalConfirmText: { color: palette.surface, fontWeight: '700' },
+  modalConfirmText: { color: PRIMARY_BUTTON_TEXT_COLOR, fontWeight: '700' },
   primaryButton: {
     marginTop: 20,
     backgroundColor: palette.primary,
@@ -1288,7 +1310,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
   },
-  primaryButtonText: { color: palette.surface, fontWeight: '700', fontSize: 15 },
+  primaryButtonText: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+    fontWeight: '700',
+    fontSize: 15,
+  },
   errorTitle: { fontSize: 22, fontWeight: '700', color: palette.textPrimary, marginTop: 16 },
   errorMessage: {
     fontSize: 14,

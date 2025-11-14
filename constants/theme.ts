@@ -7,6 +7,7 @@ export const palette = {
   primaryDark: '#162b63',
   primaryMuted: '#e3e9ff',
   accent: '#0ea5e9',
+  accentDark: '#0b82c2',
   accentMuted: '#cbeffd',
   success: '#16a34a',
   successMuted: '#dcfce7',
@@ -47,3 +48,58 @@ export const typography = {
   headingFontWeight: '700' as const,
   labelFontWeight: '600' as const,
 };
+
+type RGB = { r: number; g: number; b: number };
+
+function hexToRgb(hex: string): RGB | null {
+  const normalized = hex.trim().replace('#', '');
+
+  if (![3, 6].includes(normalized.length)) {
+    return null;
+  }
+
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized;
+
+  const r = Number.parseInt(expanded.slice(0, 2), 16);
+  const g = Number.parseInt(expanded.slice(2, 4), 16);
+  const b = Number.parseInt(expanded.slice(4, 6), 16);
+
+  if ([r, g, b].some((component) => Number.isNaN(component))) {
+    return null;
+  }
+
+  return { r, g, b };
+}
+
+function getRelativeLuminance({ r, g, b }: RGB) {
+  const srgb = [r, g, b].map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+}
+
+export function getReadableTextColor(
+  backgroundColor: string,
+  options?: { light?: string; dark?: string },
+) {
+  const { light = '#ffffff', dark = palette.textPrimary } = options ?? {};
+  const rgb = hexToRgb(backgroundColor);
+
+  if (!rgb) {
+    return light;
+  }
+
+  const luminance = getRelativeLuminance(rgb);
+
+  return luminance > 0.55 ? dark : light;
+}

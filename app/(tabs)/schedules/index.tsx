@@ -11,7 +11,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useUser, useCollection } from '../../../src/firebase';
 import type { Schedule } from '../../../src/lib/types';
-import { palette, radii, spacing } from '../../../constants/theme';
+import { palette, radii, spacing, getReadableTextColor } from '../../../constants/theme';
+
+const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
 export default function SchedulesListScreen() {
   const router = useRouter();
@@ -120,7 +122,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   newButtonText: {
-    color: palette.surface,
+    color: PRIMARY_BUTTON_TEXT_COLOR,
     fontWeight: '600',
     letterSpacing: 0.3,
   },

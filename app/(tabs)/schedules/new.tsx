@@ -16,7 +16,12 @@ import { uploadToCloudinary } from '../../../src/lib/cloudinary';
 import type { ScheduleStep } from '../../../src/lib/types';
 import ScheduleBuilder from '../../../components/schedules/ScheduleBuilder';
 import type { ScheduleFormValues } from '../../../components/schedules/types';
-import { createEmptyStep, makeStepId } from '../../../components/schedules/utils';
+import {
+  createEmptyStep,
+  makeStepId,
+  formatFrequencyDays,
+  normalizeFrequencyDays,
+} from '../../../components/schedules/utils';
 import { palette, radii, spacing } from '../../../constants/theme';
 
 function inferMediaType(mimeType?: string | null) {
@@ -35,7 +40,7 @@ export default function NewScheduleScreen() {
     defaultValues: {
       title: '',
       description: '',
-      frequency: '',
+      frequencyDays: [],
       steps: [createEmptyStep()],
       music: null,
     },
@@ -226,12 +231,16 @@ export default function NewScheduleScreen() {
 
       const now = Date.now();
 
+      const normalizedFrequencyDays = normalizeFrequencyDays(values.frequencyDays);
+      const frequencyLabel = formatFrequencyDays(normalizedFrequencyDays);
+
       const payload: Record<string, any> = {
         id: scheduleDoc.id,
         userId: user.uid,
         title: values.title.trim() || 'Untitled schedule',
         description: values.description?.trim() ?? '',
-        frequency: values.frequency?.trim() ?? '',
+        frequency: frequencyLabel,
+        frequencyDays: normalizedFrequencyDays,
         steps,
         totalDuration,
         createdAt: now,
@@ -263,7 +272,9 @@ export default function NewScheduleScreen() {
     }
   };
 
-  const submitHandler = handleSubmit(onSubmit);
+  const submitHandler = handleSubmit(onSubmit, () => {
+    Alert.alert('Missing information', 'Please enter a schedule name before saving.');
+  });
 
   return (
     <View style={styles.screen}>

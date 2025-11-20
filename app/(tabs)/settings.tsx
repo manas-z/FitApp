@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
   DEFAULT_REST_DURATION_SECONDS,
+  REST_DURATION_STORAGE_KEY,
 } from '../../constants/settings';
 import {
   palette,

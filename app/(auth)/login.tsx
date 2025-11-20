@@ -6,6 +6,10 @@ import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useFirebase } from '../../src/firebase';
 import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
+import { Screen } from '@/components/Screen';
+import { StyledText } from '@/components/StyledText';
+import { TextField } from '@/components/ui/TextField';
+import { Button } from '@/components/ui/Button';
 
 type FormValues = {
   email: string;

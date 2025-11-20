@@ -20,7 +20,13 @@ import { uploadToCloudinary } from '../../../../src/lib/cloudinary';
 import type { Schedule, ScheduleStep } from '../../../../src/lib/types';
 import ScheduleBuilder from '../../../../components/schedules/ScheduleBuilder';
 import type { ScheduleFormValues } from '../../../../components/schedules/types';
-import { createEmptyStep, makeStepId } from '../../../../components/schedules/utils';
+import {
+  createEmptyStep,
+  makeStepId,
+  formatFrequencyDays,
+  normalizeFrequencyDays,
+  parseFrequencyString,
+} from '../../../../components/schedules/utils';
 import { palette } from '../../../../constants/theme';
 
 function inferMediaType(mimeType?: string | null) {
@@ -48,7 +54,7 @@ export default function EditScheduleScreen() {
     defaultValues: {
       title: '',
       description: '',
-      frequency: '',
+      frequencyDays: [],
       steps: [createEmptyStep()],
       music: null,
     },
@@ -84,10 +90,15 @@ export default function EditScheduleScreen() {
         media: step.media,
       })) ?? [createEmptyStep()];
 
+    const inferredFrequencyDays =
+      schedule.frequencyDays && schedule.frequencyDays.length > 0
+        ? normalizeFrequencyDays(schedule.frequencyDays)
+        : parseFrequencyString(schedule.frequency);
+
     reset({
       title: schedule.title ?? '',
       description: schedule.description ?? '',
-      frequency: schedule.frequency ?? '',
+      frequencyDays: inferredFrequencyDays,
       music: schedule.music ?? null,
       steps: mappedSteps.length > 0 ? mappedSteps : [createEmptyStep()],
     });
@@ -258,10 +269,14 @@ export default function EditScheduleScreen() {
         id as string,
       );
 
+      const normalizedFrequencyDays = normalizeFrequencyDays(values.frequencyDays);
+      const frequencyLabel = formatFrequencyDays(normalizedFrequencyDays);
+
       const payload: Record<string, any> = {
         title: values.title.trim() || 'Untitled schedule',
         description: values.description?.trim() ?? '',
-        frequency: values.frequency?.trim() ?? '',
+        frequency: frequencyLabel,
+        frequencyDays: normalizedFrequencyDays,
         steps,
         totalDuration,
         updatedAt: Date.now(),

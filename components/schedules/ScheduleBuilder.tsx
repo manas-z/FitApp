@@ -25,11 +25,11 @@ import DraggableFlatList, {
   RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
-import { Picker } from '@react-native-picker/picker';
+import { Video, ResizeMode, type AVPlaybackStatus } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ScheduleFormValues } from './types';
-import type { ScheduleStepMedia } from '../../src/lib/types';
+import type { ScheduleFormValues, FrequencyDay } from './types';
+import { FREQUENCY_DAY_ORDER } from './types';
+import { FREQUENCY_DAY_LABELS, formatFrequencyDays } from './utils';
 import { palette, getReadableTextColor } from '../../constants/theme';
 
 const PRIMARY_ACTION_TEXT_COLOR = getReadableTextColor(palette.primaryDark);
@@ -69,6 +69,7 @@ type StepEditorModalProps = {
   onPickStepMedia: (index: number) => Promise<void>;
   onRemoveStepMedia: (index: number) => void;
   uploadingStepIndex: number | null;
+  setValue: UseFormSetValue<ScheduleFormValues>;
 };
 
 function formatSecondsToClock(totalSeconds: number): string {
@@ -78,258 +79,11 @@ function formatSecondsToClock(totalSeconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-function describeDuration(seconds: number): string {
-  const total = Math.max(Math.floor(seconds), 0);
-  const minutes = Math.floor(total / 60);
-  const remainSeconds = total % 60;
-  if (minutes === 0) {
-    return `${remainSeconds}s`;
-  }
-  if (remainSeconds === 0) {
-    return `${minutes}m`;
-  }
-  return `${minutes}m ${remainSeconds}s`;
-}
-
-function mediaIconForType(media?: ScheduleStepMedia) {
-  if (!media) return 'image-outline';
-  if (media.type === 'video') return 'videocam-outline';
-  if (media.type === 'audio') return 'musical-notes-outline';
-  return 'image-outline';
-}
-
 const DURATION_MIN = 5;
 const DURATION_MAX = 900;
 const REST_MIN = 5;
 const REST_MAX = 600;
 const REST_DEFAULT = 30;
-
-type CounterControlProps = {
-  label: string;
-  value: number;
-  min?: number;
-  onChange: (value: number) => void;
-  description?: string;
-};
-
-type DurationPickerProps = {
-  value: number;
-  onChange: (value: number) => void;
-  min: number;
-  max: number;
-  step?: number;
-};
-
-const CounterControl: React.FC<CounterControlProps> = ({
-  label,
-  value,
-  min = 0,
-  onChange,
-  description,
-}) => {
-  const clampedValue = Number.isFinite(value) ? value : min;
-  const handleDecrease = () => {
-    const next = Math.max(min, Math.round(clampedValue) - 1);
-    onChange(next);
-  };
-  const handleIncrease = () => {
-    onChange(Math.round(clampedValue) + 1);
-  };
-  const disableDecrease = clampedValue <= min;
-
-  return (
-    <View style={styles.counterGroup}>
-      <View style={styles.counterCopy}>
-        <Text style={styles.counterLabel}>{label}</Text>
-        {description ? <Text style={styles.counterHint}>{description}</Text> : null}
-      </View>
-      <View style={styles.counterControls}>
-        <Pressable
-          style={[styles.counterButton, disableDecrease && styles.counterButtonDisabled]}
-          onPress={handleDecrease}
-          disabled={disableDecrease}
-        >
-          <Ionicons
-            name="remove"
-            size={16}
-            color={disableDecrease ? palette.textMuted : palette.textPrimary}
-          />
-        </Pressable>
-        <Text style={styles.counterValue}>{clampedValue}</Text>
-        <Pressable style={styles.counterButton} onPress={handleIncrease}>
-          <Ionicons name="add" size={16} color={palette.textPrimary} />
-        </Pressable>
-      </View>
-    </View>
-  );
-};
-
-const DurationPicker: React.FC<DurationPickerProps> = ({
-  value,
-  onChange,
-  min,
-  max,
-  step = 5,
-}) => {
-  const allowedValues = React.useMemo(() => {
-    const safeStep = Math.max(1, Math.round(step));
-    const roundedMin = Math.max(0, min);
-    const roundedMax = Math.max(roundedMin, max);
-    const values: number[] = [];
-    const first = Math.max(roundedMin, Math.ceil(roundedMin / safeStep) * safeStep);
-    for (let current = first; current <= roundedMax; current += safeStep) {
-      values.push(current);
-    }
-    if (values.length === 0) {
-      values.push(roundedMin);
-    }
-    return values;
-  }, [min, max, step]);
-
-  const valueSet = React.useMemo(() => new Set(allowedValues), [allowedValues]);
-
-  const safeValue = React.useMemo(() => {
-    if (!Number.isFinite(value)) {
-      return allowedValues[0];
-    }
-    const clamped = Math.min(Math.max(Math.round(value), allowedValues[0]), allowedValues[allowedValues.length - 1]);
-    return allowedValues.reduce((closest, current) => {
-      const diff = Math.abs(current - clamped);
-      const closestDiff = Math.abs(closest - clamped);
-      if (diff < closestDiff) {
-        return current;
-      }
-      return closest;
-    }, allowedValues[0]);
-  }, [allowedValues, value]);
-
-  const buckets = React.useMemo(() => {
-    const map = new Map<number, number[]>();
-    allowedValues.forEach((allowed) => {
-      const minute = Math.floor(allowed / 60);
-      const second = allowed % 60;
-      const seconds = map.get(minute) ?? [];
-      if (!seconds.includes(second)) {
-        seconds.push(second);
-      }
-      map.set(minute, seconds);
-    });
-    map.forEach((seconds) => seconds.sort((a, b) => a - b));
-    return map;
-  }, [allowedValues]);
-
-  const minuteOptions = React.useMemo(
-    () => Array.from(buckets.keys()).sort((a, b) => a - b),
-    [buckets],
-  );
-
-  const [selectedMinute, setSelectedMinute] = React.useState(Math.floor(safeValue / 60));
-  const [selectedSecond, setSelectedSecond] = React.useState(safeValue % 60);
-
-  React.useEffect(() => {
-    setSelectedMinute(Math.floor(safeValue / 60));
-    setSelectedSecond(safeValue % 60);
-  }, [safeValue]);
-
-  const secondsForMinute = React.useMemo(
-    () => buckets.get(selectedMinute) ?? [],
-    [buckets, selectedMinute],
-  );
-
-  React.useEffect(() => {
-    if (!secondsForMinute.includes(selectedSecond) && secondsForMinute.length > 0) {
-      const fallback = secondsForMinute[0];
-      setSelectedSecond(fallback);
-      const total = selectedMinute * 60 + fallback;
-      if (valueSet.has(total)) {
-        onChange(total);
-      }
-    }
-  }, [secondsForMinute, selectedSecond, selectedMinute, valueSet, onChange]);
-
-  const handleMinuteChange = (nextMinute: number | string) => {
-    const coercedMinute =
-      typeof nextMinute === 'string' ? Math.max(0, Number.parseInt(nextMinute, 10) || 0) : nextMinute;
-    setSelectedMinute(coercedMinute);
-    const seconds = buckets.get(coercedMinute) ?? [];
-    const coercedSelectedSecond =
-      typeof selectedSecond === 'string'
-        ? Math.max(0, Number.parseInt(selectedSecond, 10) || 0)
-        : selectedSecond;
-    const nextSecond = seconds.includes(coercedSelectedSecond)
-      ? coercedSelectedSecond
-      : seconds[0] ?? 0;
-    const total = coercedMinute * 60 + nextSecond;
-    if (valueSet.has(total)) {
-      onChange(total);
-    } else if (seconds.length) {
-      onChange(coercedMinute * 60 + seconds[0]);
-    } else {
-      onChange(allowedValues[0]);
-    }
-  };
-
-  const handleSecondChange = (nextSecond: number | string) => {
-    const coercedSecond =
-      typeof nextSecond === 'string' ? Math.max(0, Number.parseInt(nextSecond, 10) || 0) : nextSecond;
-    setSelectedSecond(coercedSecond);
-    const coercedMinute =
-      typeof selectedMinute === 'string'
-        ? Math.max(0, Number.parseInt(selectedMinute, 10) || 0)
-        : selectedMinute;
-    const total = coercedMinute * 60 + coercedSecond;
-    if (valueSet.has(total)) {
-      onChange(total);
-    } else {
-      const seconds = buckets.get(coercedMinute) ?? [];
-      if (seconds.length) {
-        onChange(coercedMinute * 60 + seconds[0]);
-      }
-    }
-  };
-
-  return (
-    <View style={styles.durationPicker}>
-      <View style={styles.durationHighlight} pointerEvents="none" />
-      <View style={styles.durationColumn}>
-        <Text style={styles.durationColumnLabel}>Minutes</Text>
-        <Picker
-          selectedValue={selectedMinute}
-          onValueChange={handleMinuteChange}
-          style={styles.durationWheel}
-          itemStyle={styles.durationItem}
-        >
-          {minuteOptions.map((minute) => (
-            <Picker.Item
-              key={minute}
-              label={String(minute).padStart(2, '0')}
-              value={minute}
-              color={palette.textPrimary}
-            />
-          ))}
-        </Picker>
-      </View>
-      <View style={styles.durationColumn}>
-        <Text style={styles.durationColumnLabel}>Seconds</Text>
-        <Picker
-          selectedValue={selectedSecond}
-          onValueChange={handleSecondChange}
-          style={styles.durationWheel}
-          itemStyle={styles.durationItem}
-        >
-          {secondsForMinute.map((second) => (
-            <Picker.Item
-              key={second}
-              label={String(second).padStart(2, '0')}
-              value={second}
-              color={palette.textPrimary}
-            />
-          ))}
-        </Picker>
-      </View>
-    </View>
-  );
-};
 
 const StepEditorModal: React.FC<StepEditorModalProps> = ({
   control,
@@ -339,20 +93,74 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
   onPickStepMedia,
   onRemoveStepMedia,
   uploadingStepIndex,
+  setValue,
 }) => {
   const step = useWatch({ control, name: `steps.${stepIndex}` });
   const insets = useSafeAreaInsets();
   const footerPadding = Math.max(insets.bottom, 16);
   const contentPadding = React.useMemo(
-    () => [styles.modalContent, { paddingBottom: footerPadding + 72 }],
+    () => [styles.modalContent, { paddingBottom: footerPadding + 96 }],
     [footerPadding],
   );
   const footerStyle = React.useMemo(
     () => [styles.modalFooter, { paddingBottom: footerPadding }],
     [footerPadding],
   );
-  const durationLabel = formatSecondsToClock(step?.duration ?? 0);
-  const media = step?.media;
+
+  const safeStep = step ?? {
+    duration: 0,
+    minDuration: DURATION_MIN,
+    media: undefined,
+  };
+  const media = safeStep.media;
+  const reportedDuration = Math.round(safeStep.duration ?? 0);
+  const storedMinDuration = Math.round(safeStep.minDuration ?? DURATION_MIN);
+  const minDurationSetting = Math.min(
+    DURATION_MAX,
+    Math.max(DURATION_MIN, storedMinDuration),
+  );
+  const currentDuration = Math.max(minDurationSetting, reportedDuration);
+  const handleVideoLoad = React.useCallback(
+    (status: AVPlaybackStatus) => {
+      if (!status.isLoaded || status.durationMillis == null || !step) {
+        return;
+      }
+      const videoSeconds = Math.ceil(status.durationMillis / 1000);
+      const clampedVideoSeconds = Math.min(
+        DURATION_MAX,
+        Math.max(DURATION_MIN, videoSeconds),
+      );
+      const currentMin = Math.round(step.minDuration ?? DURATION_MIN);
+      if (currentMin !== clampedVideoSeconds) {
+        setValue(`steps.${stepIndex}.minDuration`, clampedVideoSeconds);
+      }
+      if (currentDuration < clampedVideoSeconds) {
+        const rounded = Math.min(
+          DURATION_MAX,
+          Math.max(
+            clampedVideoSeconds,
+            Math.ceil(clampedVideoSeconds / 5) * 5,
+          ),
+        );
+        setValue(`steps.${stepIndex}.duration`, rounded);
+      }
+    },
+    [currentDuration, setValue, step, stepIndex],
+  );
+
+  React.useEffect(() => {
+    if (!step) {
+      return;
+    }
+    if (step.media?.type === 'video') {
+      return;
+    }
+    const currentMin = Math.round(step.minDuration ?? DURATION_MIN);
+    if (currentMin === DURATION_MIN) {
+      return;
+    }
+    setValue(`steps.${stepIndex}.minDuration`, DURATION_MIN);
+  }, [step, setValue, stepIndex]);
 
   if (!visible || !step) {
     return null;
@@ -376,17 +184,17 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
               contentContainerStyle={contentPadding}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.modalTitle}>Step {stepIndex + 1} details</Text>
+              <Text style={styles.modalTitle}>Edit Step</Text>
 
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Step name</Text>
+              <View style={styles.editorRow}>
+                <Text style={styles.editorLabel}>Step Name:</Text>
                 <Controller
                   control={control}
                   name={`steps.${stepIndex}.name`}
                   render={({ field: { onChange, value } }) => (
                     <TextInput
-                      style={styles.input}
-                      placeholder="Enter a step name"
+                      style={styles.editorInput}
+                      placeholder="Step title"
                       placeholderTextColor={palette.textMuted}
                       value={value}
                       onChangeText={onChange}
@@ -395,70 +203,134 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                 />
               </View>
 
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Duration</Text>
-                <View style={styles.durationCard}>
-                  <View style={styles.durationHeaderRow}>
-                    <Text style={styles.durationHeading}>Set time</Text>
-                    <Text style={styles.durationCurrent}>{durationLabel}</Text>
-                  </View>
-                  <Controller
-                    control={control}
-                    name={`steps.${stepIndex}.duration`}
-                    render={({ field: { onChange, value } }) => {
-                      const safeValue = Number.isFinite(value)
-                        ? Math.max(DURATION_MIN, Math.round(value))
-                        : DURATION_MIN;
-                      return (
-                        <DurationPicker
-                          value={safeValue}
-                          min={DURATION_MIN}
-                          max={DURATION_MAX}
-                          onChange={onChange}
-                          step={5}
-                        />
-                      );
-                    }}
-                  />
-                  <Text style={styles.durationHint}>Scroll to fine tune minutes and seconds.</Text>
-                </View>
-              </View>
+              <Controller
+                control={control}
+                name={`steps.${stepIndex}.duration`}
+                render={({ field: { value, onChange } }) => {
+                  const baseValue = Number.isFinite(value)
+                    ? Math.round(value)
+                    : minDurationSetting;
+                  const boundedValue = Math.max(
+                    minDurationSetting,
+                    Math.min(DURATION_MAX, baseValue),
+                  );
+                  const adjust = (delta: number) => {
+                    const next = Math.max(
+                      minDurationSetting,
+                      Math.min(DURATION_MAX, boundedValue + delta),
+                    );
+                    onChange(next);
+                  };
+                  const canDecrease = boundedValue > minDurationSetting;
+                  return (
+                    <View style={styles.editorRow}>
+                      <Text style={styles.editorLabel}>Duration:</Text>
+                      <View style={styles.numberInput}>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Decrease duration"
+                          onPress={() => adjust(-5)}
+                          disabled={!canDecrease}
+                        >
+                          <Ionicons
+                            name="remove"
+                            size={16}
+                            color={
+                              canDecrease ? palette.surface : palette.textMuted
+                            }
+                          />
+                        </Pressable>
+                        <Text style={styles.numberValue}>
+                          {formatSecondsToClock(boundedValue)}
+                        </Text>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Increase duration"
+                          onPress={() => adjust(5)}
+                        >
+                          <Ionicons name="add" size={16} color={palette.surface} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
 
               <Controller
                 control={control}
                 name={`steps.${stepIndex}.sprintCount`}
-                render={({ field: { value, onChange } }) => (
-                  <CounterControl
-                    label="Sprint"
-                    value={Math.max(1, Math.round(value ?? 1))}
-                    min={1}
-                    description="Number of rounds for this movement."
-                    onChange={onChange}
-                  />
-                )}
+                render={({ field: { value, onChange } }) => {
+                  const safeValue = Math.max(1, Math.round(value ?? 1));
+                  const adjust = (delta: number) => {
+                    const next = Math.max(1, safeValue + delta);
+                    onChange(next);
+                  };
+                  return (
+                    <View style={styles.editorRow}>
+                      <Text style={styles.editorLabel}>Default Sprints:</Text>
+                      <View style={styles.numberInput}>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Decrease sprint count"
+                          onPress={() => adjust(-1)}
+                        >
+                          <Ionicons name="remove" size={16} color={palette.surface} />
+                        </Pressable>
+                        <Text style={styles.numberValue}>{safeValue}</Text>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Increase sprint count"
+                          onPress={() => adjust(1)}
+                        >
+                          <Ionicons name="add" size={16} color={palette.surface} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }}
               />
 
               <Controller
                 control={control}
                 name={`steps.${stepIndex}.countdownVoice`}
-                render={({ field: { value, onChange } }) => (
-                  <CounterControl
-                    label="Countdown with voice"
-                    value={Math.max(0, Math.round(value ?? 0))}
-                    min={0}
-                    description="Seconds for the vocal countdown."
-                    onChange={onChange}
-                  />
-                )}
+                render={({ field: { value, onChange } }) => {
+                  const safeValue = Math.max(0, Math.round(value ?? 0));
+                  const adjust = (delta: number) => {
+                    const next = Math.max(0, safeValue + delta);
+                    onChange(next);
+                  };
+                  return (
+                    <View style={styles.editorRow}>
+                      <Text style={styles.editorLabel}>Countdown with voice:</Text>
+                      <View style={styles.numberInput}>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Decrease countdown seconds"
+                          onPress={() => adjust(-1)}
+                          disabled={safeValue === 0}
+                        >
+                          <Ionicons
+                            name="remove"
+                            size={16}
+                            color={safeValue === 0 ? palette.textMuted : palette.surface}
+                          />
+                        </Pressable>
+                        <Text style={styles.numberValue}>{safeValue}s</Text>
+                        <Pressable
+                          style={styles.numberButton}
+                          accessibilityLabel="Increase countdown seconds"
+                          onPress={() => adjust(1)}
+                        >
+                          <Ionicons name="add" size={16} color={palette.surface} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }}
               />
 
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleCopy}>
-                  <Text style={styles.toggleLabel}>Mute background</Text>
-                  <Text style={styles.toggleHint}>
-                    Silence background music while this step plays.
-                  </Text>
-                </View>
+              <View style={styles.editorRow}>
+                <Text style={styles.editorLabel}>Mute Background:</Text>
                 <Controller
                   control={control}
                   name={`steps.${stepIndex}.muteBackground`}
@@ -467,16 +339,16 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                       value={Boolean(value)}
                       onValueChange={onChange}
                       trackColor={{ false: palette.primaryMuted, true: palette.primary }}
-                      thumbColor={Boolean(value) ? palette.primary : palette.surface}
+                      thumbColor={Boolean(value) ? palette.primaryDark : palette.surface}
                     />
                   )}
                 />
               </View>
 
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Upload image / video / audio</Text>
+              <View style={styles.mediaSection}>
+                <Text style={styles.editorLabel}>Upload Media</Text>
                 <Pressable
-                  style={styles.uploadArea}
+                  style={styles.mediaCard}
                   onPress={() => onPickStepMedia(stepIndex)}
                 >
                   {uploadingStepIndex === stepIndex ? (
@@ -492,14 +364,11 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                           resizeMode={ResizeMode.COVER}
                           shouldPlay={false}
                           useNativeControls
+                          onLoad={handleVideoLoad}
                         />
                       ) : (
                         <View style={styles.modalAudio}>
-                          <Ionicons
-                            name="musical-notes"
-                            size={28}
-                            color={palette.primary}
-                          />
+                          <Ionicons name="musical-notes" size={28} color={palette.primary} />
                           <Text style={styles.modalAudioText} numberOfLines={1}>
                             {media.hint ?? 'Audio clip'}
                           </Text>
@@ -507,17 +376,9 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
                       )}
                     </View>
                   ) : (
-                    <View style={styles.uploadPrompt}>
-                      <Ionicons
-                        name="cloud-upload-outline"
-                        size={32}
-                        color={palette.primary}
-                        style={styles.uploadPromptIcon}
-                      />
-                      <Text style={styles.uploadPromptText}>
-                        Tap to upload a file for this step
-                      </Text>
-                    </View>
+                    <Text style={styles.mediaPlaceholder}>
+                      The user will be able to upload media like image/audio/video as needed.
+                    </Text>
                   )}
                 </Pressable>
                 {media?.url ? (
@@ -533,11 +394,11 @@ const StepEditorModal: React.FC<StepEditorModalProps> = ({
             </ScrollView>
 
             <View style={footerStyle}>
-              <Pressable style={styles.modalActionSecondary} onPress={onClose}>
-                <Text style={styles.modalActionSecondaryText}>Cancel</Text>
+              <Pressable style={styles.modalFooterButtonSecondary} onPress={onClose}>
+                <Text style={styles.modalFooterButtonSecondaryText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.modalActionPrimary} onPress={onClose}>
-                <Text style={styles.modalActionPrimaryText}>Save</Text>
+              <Pressable style={styles.modalFooterButtonPrimary} onPress={onClose}>
+                <Text style={styles.modalFooterButtonPrimaryText}>Save</Text>
               </Pressable>
             </View>
           </View>
@@ -573,6 +434,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
   const music = watch('music');
   const [insertMenuIndex, setInsertMenuIndex] = React.useState<number | null>(null);
   const [restEditorIndex, setRestEditorIndex] = React.useState<number | null>(null);
+  const [frequencyMenuOpen, setFrequencyMenuOpen] = React.useState(false);
   const totalDuration = steps.reduce((sum, step) => {
     const duration = Number(step?.duration) || 0;
     const rest = Number(step?.restDuration) || 0;
@@ -596,63 +458,131 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
 
   const listHeader = React.useMemo(() => {
     const totalLabel = formatSecondsToClock(totalDuration);
-    const durationDescription = describeDuration(totalDuration);
 
     return (
       <View style={styles.headerCard}>
         <Text style={styles.pageTitle}>
-          {mode === 'create' ? 'Create schedule' : 'Edit schedule'}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Arrange steps, add timing, and upload media exactly as in the design.
+          {mode === 'create' ? 'Create Schedule' : 'Edit Schedule'}
         </Text>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Schedule name</Text>
-          <Controller
-            control={control}
-            name="title"
-            rules={{ required: true }}
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., Test Duration"
-                placeholderTextColor={palette.textMuted}
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
-        </View>
-
-        <View style={styles.infoRow}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Schedule Duration</Text>
-            <Text style={styles.infoValue}>{totalLabel}</Text>
-            <Text style={styles.infoHint}>{durationDescription}</Text>
+        <View style={styles.summaryBlock}>
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryLabel}>Schedule Name:</Text>
+            <Controller
+              control={control}
+              name="title"
+              rules={{ required: true }}
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={styles.summaryInput}
+                  placeholder="Test"
+                  placeholderTextColor={palette.textMuted}
+                  value={value}
+                  onChangeText={onChange}
+                />
+              )}
+            />
           </View>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Steps</Text>
-            <Text style={styles.infoValue}>{steps.length}</Text>
-            <Text style={styles.infoHint}>Drag to reorder</Text>
-          </View>
-        </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Schedule frequency</Text>
-          <Controller
-            control={control}
-            name="frequency"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., Every Tuesday"
-                placeholderTextColor={palette.textMuted}
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryLabel}>Schedule Duration:</Text>
+            <Text style={styles.summaryValue}>{totalLabel}</Text>
+          </View>
+
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryLabel}>Schedule Frequency:</Text>
+            <Controller
+              control={control}
+              name="frequencyDays"
+              render={({ field: { onChange, value } }) => {
+                const selectedDays: FrequencyDay[] = value || [];
+                const label = formatFrequencyDays(selectedDays);
+                const isEveryday = selectedDays.length === FREQUENCY_DAY_ORDER.length;
+                const orderedSelection = (days: FrequencyDay[]) =>
+                  FREQUENCY_DAY_ORDER.filter((day) => days.includes(day));
+                const toggleDay = (day: FrequencyDay) => {
+                  const next = selectedDays.includes(day)
+                    ? selectedDays.filter((d) => d !== day)
+                    : [...selectedDays, day];
+                  onChange(orderedSelection(next));
+                };
+                const toggleAll = () => {
+                  onChange(isEveryday ? [] : [...FREQUENCY_DAY_ORDER]);
+                };
+                return (
+                  <View style={styles.frequencySelector}>
+                    <Pressable
+                      style={[
+                        styles.dropdownTrigger,
+                        frequencyMenuOpen && styles.dropdownTriggerActive,
+                      ]}
+                      onPress={() => setFrequencyMenuOpen((prev) => !prev)}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownTriggerText,
+                          !label && styles.dropdownPlaceholderText,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {label || 'Select days'}
+                      </Text>
+                      <Ionicons
+                        name={frequencyMenuOpen ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={palette.textSecondary}
+                      />
+                    </Pressable>
+                    {frequencyMenuOpen && (
+                      <View style={styles.dropdownMenu}>
+                        <Pressable
+                          style={[
+                            styles.dropdownOption,
+                            isEveryday && styles.dropdownOptionSelected,
+                          ]}
+                          onPress={toggleAll}
+                        >
+                          <Text style={styles.dropdownOptionText}>Everyday</Text>
+                          {isEveryday && (
+                            <Ionicons
+                              name="checkmark"
+                              size={16}
+                              color={palette.primary}
+                            />
+                          )}
+                        </Pressable>
+                        <View style={styles.dropdownDivider} />
+                        {FREQUENCY_DAY_ORDER.map((day: FrequencyDay) => {
+                          const selected = selectedDays.includes(day);
+                          return (
+                            <Pressable
+                              key={day}
+                              style={[
+                                styles.dropdownOption,
+                                selected && styles.dropdownOptionSelected,
+                              ]}
+                              onPress={() => toggleDay(day)}
+                            >
+                              <Text style={styles.dropdownOptionText}>
+                                {`Every ${FREQUENCY_DAY_LABELS[day]}`}
+                              </Text>
+                              {selected && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={16}
+                                  color={palette.primary}
+                                />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+            />
+          </View>
         </View>
 
         <View style={styles.fieldGroup}>
@@ -716,9 +646,6 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
         <View style={styles.stepHeaderRow}>
           <View>
             <Text style={styles.stepsTitle}>Steps</Text>
-            <Text style={styles.stepsSubtitle}>
-              You can drag the handle to reorder steps instantly.
-            </Text>
           </View>
           <Pressable style={styles.addStepButton} onPress={onAddStep}>
             <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
@@ -727,7 +654,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
         </View>
       </View>
     );
-  }, [control, mode, music?.title, music?.url, onAddStep, onPickMusic, onRemoveMusic, steps.length, totalDuration, uploadingMusic]);
+  }, [control, frequencyMenuOpen, mode, music?.title, music?.url, onAddStep, onPickMusic, onRemoveMusic, steps.length, totalDuration, uploadingMusic]);
 
   const renderItem = ({ item, getIndex, drag, isActive }: RenderItemParams<any>) => {
     const index = getIndex?.() ?? fields.findIndex((field) => field.id === item.id);
@@ -737,17 +664,11 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
 
     const duration = Number(step.duration) || 0;
     const rest = Number(step.restDuration) || 0;
-    const parts: string[] = [];
-    if (duration > 0) {
-      parts.push(`Duration ${formatSecondsToClock(duration)}`);
-    }
-    if (rest > 0) {
-      parts.push(`Rest ${formatSecondsToClock(rest)}`);
-    }
-    const summary = parts.join('  |  ');
     const showRestBlock = rest > 0 || restEditorIndex === index;
     const sprintCount = Math.max(1, Math.round(step.sprintCount ?? 1));
-    const countdownVoice = Math.max(0, Math.round(step.countdownVoice ?? 0));
+
+    const durationLabel =
+      duration > 0 ? formatSecondsToClock(duration) : formatSecondsToClock(0);
 
     return (
       <View style={styles.stepItem}>
@@ -765,45 +686,15 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               hitSlop={8}
               style={styles.dragHandle}
             >
-              <Ionicons name="reorder-three" size={28} color={palette.textSecondary} />
+              <Ionicons name="reorder-three" size={32} color={palette.textSecondary} />
             </Pressable>
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle} numberOfLines={1}>
+            <View style={styles.stepInfo}>
+              <Text style={styles.stepLabel}>Step Name</Text>
+              <Text style={styles.stepName} numberOfLines={1}>
                 {step.name?.trim() || `Step ${index + 1}`}
               </Text>
-              <Text style={styles.stepSubtitle} numberOfLines={1}>
-                {summary || 'No duration set'}
-              </Text>
-              <View style={styles.stepMetaRow}>
-                <View style={styles.stepMetaPill}>
-                  <Ionicons name="repeat-outline" size={14} color={palette.primary} />
-                  <Text style={styles.stepMetaText}>
-                    {sprintCount} Sprint{sprintCount === 1 ? '' : 's'}
-                  </Text>
-                </View>
-                <View style={styles.stepMetaPill}>
-                  <Ionicons name="mic-outline" size={14} color={palette.primary} />
-                  <Text style={styles.stepMetaText}>{countdownVoice}s Voice</Text>
-                </View>
-                {step.muteBackground ? (
-                  <View style={[styles.stepMetaPill, styles.stepMetaPillDanger]}>
-                    <Ionicons name="volume-mute-outline" size={14} color={palette.danger} />
-                    <Text style={[styles.stepMetaText, styles.stepMetaDangerText]}>Muted</Text>
-                  </View>
-                ) : null}
-              </View>
-              {step.media?.url ? (
-                <View style={styles.stepMediaRow}>
-                  <Ionicons
-                    name={mediaIconForType(step.media)}
-                    size={16}
-                    color={palette.primary}
-                  />
-                  <Text style={styles.stepMediaText} numberOfLines={1}>
-                    {step.media.hint ?? 'Attached file'}
-                  </Text>
-                </View>
-              ) : null}
+              <Text style={styles.stepMetaLine}>Duration: {durationLabel}</Text>
+              <Text style={styles.stepMetaLine}>Sprints: {sprintCount}</Text>
             </View>
             <View style={styles.stepActions}>
               <Pressable
@@ -812,14 +703,14 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
                   setInsertMenuIndex(null);
                   setEditingStepIndex(index);
                 }}
-                style={styles.iconButton}
+                style={styles.stepActionButton}
               >
                 <Ionicons name="create-outline" size={18} color={palette.textPrimary} />
               </Pressable>
               <Pressable
                 accessibilityLabel="Delete step"
                 onPress={() => onRemoveStep(index)}
-                style={styles.iconButton}
+                style={styles.stepActionButton}
               >
                 <Ionicons name="trash-outline" size={18} color={palette.danger} />
               </Pressable>
@@ -827,64 +718,15 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
           </View>
         </Pressable>
 
-        {showRestBlock ? (
-          <View style={styles.restCard}>
-            <View style={styles.restHeader}>
-              <Text style={styles.restTitle}>Rest interval</Text>
-              <Text style={styles.restValue}>
-                {formatSecondsToClock(rest > 0 ? rest : REST_DEFAULT)}
-              </Text>
-            </View>
-            <Controller
-              control={control}
-              name={`steps.${index}.restDuration`}
-              render={({ field: { value, onChange } }) => {
-                const pickerValue = value && value > 0 ? Math.round(value) : REST_DEFAULT;
-                return (
-                  <>
-                    <DurationPicker
-                      value={pickerValue}
-                      min={REST_MIN}
-                      max={REST_MAX}
-                      onChange={(next) => {
-                        onChange(next);
-                        if (restEditorIndex !== index) {
-                          setRestEditorIndex(index);
-                        }
-                      }}
-                      step={5}
-                    />
-                    <Text style={styles.durationHint}>
-                      Scroll to fine tune the recovery window.
-                    </Text>
-                  </>
-                );
-              }}
-            />
-            <Pressable
-              style={styles.removeRestButton}
-              onPress={() => {
-                setValue(`steps.${index}.restDuration`, 0);
-                setRestEditorIndex(null);
-              }}
-            >
-              <Ionicons name="trash-outline" size={16} color={palette.danger} />
-              <Text style={styles.removeRestText}>Remove rest</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
         <View style={styles.insertRow}>
-          <View style={styles.insertDivider} />
           <Pressable
             style={styles.insertButton}
             onPress={() =>
               setInsertMenuIndex((current) => (current === index ? null : index))
             }
           >
-            <Ionicons name="add" size={20} color={palette.primary} />
+            <Ionicons name="add" size={28} color={palette.textPrimary} />
           </Pressable>
-          <View style={styles.insertDivider} />
         </View>
 
         {insertMenuIndex === index ? (
@@ -897,7 +739,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               }}
             >
               <Ionicons name="list-circle-outline" size={18} color={palette.primary} />
-              <Text style={styles.insertMenuText}>Add step</Text>
+              <Text style={styles.insertMenuText}>Add Step</Text>
             </Pressable>
             <Pressable
               style={styles.insertMenuItem}
@@ -911,9 +753,69 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
               }}
             >
               <Ionicons name="timer-outline" size={18} color={palette.primary} />
-              <Text style={styles.insertMenuText}>Add rest</Text>
+              <Text style={styles.insertMenuText}>Add Rest</Text>
             </Pressable>
           </View>
+        ) : null}
+
+        {showRestBlock ? (
+          <>
+            <View style={styles.restCard}>
+              <Text style={styles.restLabel}>Rest</Text>
+            <Controller
+              control={control}
+              name={`steps.${index}.restDuration`}
+              render={({ field: { value, onChange } }) => {
+                const safeValue = value && value > 0 ? Math.round(value) : REST_DEFAULT;
+                const handleAdjust = (delta: number) => {
+                  const next = safeValue + delta;
+                  if (next < REST_MIN) {
+                    onChange(0);
+                    setRestEditorIndex(null);
+                    return;
+                  }
+                  const clamped = Math.min(REST_MAX, Math.max(REST_MIN, next));
+                  onChange(clamped);
+                  if (restEditorIndex !== index) {
+                    setRestEditorIndex(index);
+                  }
+                };
+                return (
+                  <View style={styles.restControls}>
+                    <Pressable
+                      accessibilityLabel="Decrease rest duration"
+                      style={styles.restControlButton}
+                      onPress={() => handleAdjust(-5)}
+                    >
+                      <Ionicons name="remove-outline" size={18} color={palette.textPrimary} />
+                    </Pressable>
+                    <Text style={styles.restTime}>
+                      {formatSecondsToClock(safeValue)}
+                    </Text>
+            <Pressable
+              accessibilityLabel="Increase rest duration"
+              style={styles.restControlButton}
+              onPress={() => handleAdjust(5)}
+            >
+              <Ionicons name="add-outline" size={18} color={palette.textPrimary} />
+            </Pressable>
+          </View>
+        );
+      }}
+    />
+          </View>
+            <View style={styles.insertRow}>
+              <Pressable
+                style={styles.insertButton}
+                onPress={() => {
+                  setInsertMenuIndex(null);
+                  onInsertStep(index + 1);
+                }}
+              >
+                <Ionicons name="add" size={28} color={palette.textPrimary} />
+              </Pressable>
+            </View>
+          </>
         ) : null}
       </View>
     );
@@ -982,6 +884,7 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
         onPickStepMedia={onPickStepMedia}
         onRemoveStepMedia={onRemoveStepMedia}
         uploadingStepIndex={uploadingStepIndex}
+        setValue={setValue}
       />
     </View>
   );
@@ -1015,10 +918,98 @@ const styles = StyleSheet.create({
     color: palette.textPrimary,
     marginBottom: 4,
   },
-  helperCopy: {
+  summaryBlock: {
+    backgroundColor: palette.surfaceMuted,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  summaryLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.textPrimary,
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.textPrimary,
+  },
+  summaryInput: {
+    flex: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.border,
+    paddingVertical: 4,
+    color: palette.textPrimary,
+    fontSize: 15,
+    textAlign: 'right',
+  },
+  frequencySelector: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  dropdownTrigger: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: palette.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownTriggerActive: {
+    borderColor: palette.primary,
+  },
+  dropdownTriggerText: {
+    flex: 1,
+    textAlign: 'right',
     fontSize: 14,
-    color: palette.textSecondary,
-    marginBottom: 16,
+    color: palette.textPrimary,
+    marginRight: 8,
+  },
+  dropdownPlaceholderText: {
+    color: palette.textMuted,
+  },
+  dropdownMenu: {
+    width: '100%',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    overflow: 'hidden',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: palette.border,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: palette.primaryMuted,
+  },
+  dropdownOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: palette.textPrimary,
+    marginRight: 12,
   },
   fieldGroup: {
     marginBottom: 18,
@@ -1055,187 +1046,6 @@ const styles = StyleSheet.create({
   multiline: {
     minHeight: 96,
     textAlignVertical: 'top',
-  },
-  durationCard: {
-    backgroundColor: palette.surfaceMuted,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 16,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  durationHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  durationHeading: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.textPrimary,
-  },
-  durationCurrent: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  durationHint: {
-    fontSize: 12,
-    color: palette.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  durationPicker: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: palette.surfaceMuted,
-    position: 'relative',
-    overflow: 'hidden',
-    paddingHorizontal: 12,
-  },
-  durationHighlight: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 52,
-    backgroundColor: palette.primaryMuted,
-    top: '50%',
-    marginTop: -26,
-    borderRadius: 12,
-    opacity: 0.7,
-  },
-  durationColumn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  durationColumnLabel: {
-    fontSize: 12,
-    color: palette.textPrimary,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  durationWheel: {
-    width: '100%',
-    height: 150,
-    backgroundColor: 'transparent',
-  },
-  durationItem: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: palette.textPrimary,
-  },
-  counterGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: palette.surfaceMuted,
-    marginBottom: 12,
-  },
-  counterCopy: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  counterLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginBottom: 4,
-  },
-  counterHint: {
-    fontSize: 12,
-    color: palette.textSecondary,
-  },
-  counterControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  counterButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: palette.surfaceMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  counterButtonDisabled: {
-    backgroundColor: palette.surfaceMuted,
-  },
-  counterValue: {
-    minWidth: 24,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '700',
-    color: palette.textPrimary,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: palette.surfaceMuted,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  toggleCopy: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  toggleLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginBottom: 4,
-  },
-  toggleHint: {
-    fontSize: 12,
-    color: palette.textSecondary,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: palette.primaryMuted,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: palette.primaryMuted,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    color: palette.primary,
-    marginBottom: 6,
-    letterSpacing: 0.6,
-  },
-  infoValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: palette.textPrimary,
-  },
-  infoHint: {
-    fontSize: 12,
-    color: palette.textSecondary,
-    marginTop: 4,
   },
   musicUpload: {
     flexDirection: 'row',
@@ -1287,20 +1097,82 @@ const styles = StyleSheet.create({
     color: palette.danger,
     fontWeight: '600',
   },
+  editorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: palette.border,
+  },
+  editorLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    flexShrink: 1,
+  },
+  editorInput: {
+    borderBottomWidth: 1,
+    borderColor: palette.border,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    minWidth: '55%',
+    fontSize: 14,
+    color: palette.textPrimary,
+    textAlign: 'right',
+  },
+  numberInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  numberButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: palette.textPrimary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  numberValue: {
+    minWidth: 64,
+    textAlign: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: palette.primary,
+    color: PRIMARY_ACTION_TEXT_COLOR,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  mediaSection: {
+    marginTop: 24,
+  },
+  mediaCard: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    minHeight: 160,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: palette.surfaceMuted,
+  },
+  mediaPlaceholder: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+  },
   stepHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   stepsTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: palette.textPrimary,
-  },
-  stepsSubtitle: {
-    fontSize: 12,
-    color: palette.textSecondary,
-    marginTop: 4,
   },
   addStepButton: {
     flexDirection: 'row',
@@ -1324,7 +1196,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderRadius: 18,
     padding: 16,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: palette.border,
     shadowColor: palette.shadow,
@@ -1339,160 +1210,110 @@ const styles = StyleSheet.create({
   },
   stepRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   dragHandle: {
-    marginRight: 12,
-    paddingTop: 4,
+    marginRight: 16,
+    paddingTop: 2,
   },
-  stepContent: {
+  stepInfo: {
     flex: 1,
     gap: 4,
   },
-  stepTitle: {
+  stepLabel: {
+    fontSize: 13,
+    color: palette.textSecondary,
+  },
+  stepName: {
     fontSize: 16,
     fontWeight: '700',
     color: palette.textPrimary,
   },
-  stepSubtitle: {
-    fontSize: 12,
-    color: palette.textSecondary,
-  },
-  stepMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  stepMetaPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.background,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  stepMetaPillDanger: {
-    backgroundColor: palette.dangerMuted,
-  },
-  stepMetaText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.primaryDark,
-  },
-  stepMetaDangerText: {
-    color: palette.danger,
-  },
-  stepMediaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepMediaText: {
-    fontSize: 12,
-    color: palette.primary,
-    flex: 1,
+  stepMetaLine: {
+    fontSize: 14,
+    color: palette.textPrimary,
   },
   stepActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     marginLeft: 12,
   },
-  iconButton: {
-    width: 36,
-    height: 36,
+  stepActionButton: {
+    width: 32,
+    height: 32,
     borderRadius: 12,
-    backgroundColor: palette.surfaceMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  restCard: {
-    backgroundColor: palette.surfaceMuted,
-    borderRadius: 18,
-    padding: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    marginBottom: 12,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  restHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  restTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.textPrimary,
-  },
-  restValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  removeRestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  removeRestText: {
-    color: palette.danger,
-    fontWeight: '600',
   },
   insertRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  insertDivider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: palette.primaryMuted,
+    marginVertical: 12,
   },
   insertButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: palette.primaryMuted,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: palette.textPrimary,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.primary,
+    backgroundColor: palette.surface,
   },
   insertMenu: {
     backgroundColor: palette.surface,
     borderRadius: 16,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingVertical: 12,
     marginBottom: 12,
-    shadowColor: palette.shadow,
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    gap: 4,
   },
   insertMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   insertMenuText: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.primary,
+    color: palette.textPrimary,
+  },
+  restCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    padding: 16,
+    marginBottom: 16,
+  },
+  restLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginBottom: 12,
+  },
+  restControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  restControlButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  restTime: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: palette.textPrimary,
   },
   footer: {
     position: 'absolute',
@@ -1576,29 +1397,6 @@ const styles = StyleSheet.create({
     color: palette.textPrimary,
     marginBottom: 16,
   },
-  uploadArea: {
-    borderWidth: 1,
-    borderColor: palette.primary,
-    borderStyle: 'dashed',
-    borderRadius: 18,
-    minHeight: 160,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: palette.surfaceMuted,
-  },
-  uploadPrompt: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  uploadPromptIcon: {
-    marginBottom: 12,
-  },
-  uploadPromptText: {
-    fontSize: 14,
-    color: palette.textSecondary,
-    textAlign: 'center',
-  },
   modalPreview: {
     width: '100%',
     borderRadius: 16,
@@ -1643,27 +1441,28 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: palette.border,
   },
-  modalActionSecondary: {
+  modalFooterButtonSecondary: {
     flex: 1,
-    borderRadius: 999,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingVertical: 12,
+    paddingVertical: 14,
     marginRight: 12,
     alignItems: 'center',
+    backgroundColor: palette.surface,
   },
-  modalActionSecondaryText: {
-    color: palette.textSecondary,
+  modalFooterButtonSecondaryText: {
+    color: palette.textPrimary,
     fontWeight: '600',
   },
-  modalActionPrimary: {
+  modalFooterButtonPrimary: {
     flex: 1,
-    borderRadius: 999,
+    borderRadius: 12,
     backgroundColor: palette.primaryDark,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  modalActionPrimaryText: {
+  modalFooterButtonPrimaryText: {
     color: PRIMARY_ACTION_TEXT_COLOR,
     fontWeight: '700',
   },

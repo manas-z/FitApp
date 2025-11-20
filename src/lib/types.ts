@@ -30,6 +30,7 @@ export interface Schedule {
   title: string;
   description?: string;
   frequency?: string | null;
+  frequencyDays?: string[] | null;
   steps: ScheduleStep[];
   totalDuration: number; // seconds
   music?: ScheduleMusic | null;

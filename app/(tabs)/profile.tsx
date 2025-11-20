@@ -41,7 +41,6 @@ export default function ProfileScreen() {
           {name}
         </StyledText>
         <StyledText tone="muted">{email}</StyledText>
-        <Button title="Sign out" variant="secondary" onPress={handleSignOut} />
       </Card>
 
       <View style={styles.section}>
@@ -59,6 +58,23 @@ export default function ProfileScreen() {
           description="Turn workout reminders on or off"
           leading={<View style={styles.iconDot} />}
         />
+      </View>
+
+      <View style={styles.section}>
+        <StyledText variant="subtitle" weight="semibold">
+          Account
+        </StyledText>
+        <Card padding="md" style={styles.accountCard}>
+          <StyledText tone="muted">
+            Sign out of CycleFit on this device when you are done riding.
+          </StyledText>
+          <Button
+            title="Log out"
+            variant="secondary"
+            fullWidth
+            onPress={handleSignOut}
+          />
+        </Card>
       </View>
     </Screen>
   );
@@ -82,6 +98,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   section: {
+    gap: spacing.md,
+  },
+  accountCard: {
     gap: spacing.md,
   },
   iconDot: {

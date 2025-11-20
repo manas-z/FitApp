@@ -1,4 +1,9 @@
 // app/(tabs)/schedules/[id]/play.tsx
+import { Feather, Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { Audio, Video as ExpoVideo, ResizeMode } from 'expo-av';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, {
   useCallback,
   useEffect,
@@ -8,6 +13,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  GestureResponderEvent,
   Image,
   Modal,
   Pressable,
@@ -16,21 +22,30 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { Video as ExpoVideo, ResizeMode, Audio } from 'expo-av';
-import { Ionicons, Feather } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useDoc, useUser } from '../../../../src/firebase';
-import type { Schedule, ScheduleStep } from '../../../../src/lib/types';
+import { Screen } from '@/components/Screen';
 import {
   DEFAULT_REST_DURATION_SECONDS,
   REST_DURATION_STORAGE_KEY,
 } from '../../../../constants/settings';
-import { palette, getReadableTextColor } from '../../../../constants/theme';
+import {
+  getReadableTextColor,
+  palette,
+  spacing,
+} from '../../../../constants/theme';
+import { useDoc, useUser } from '../../../../src/firebase';
+import type { Schedule, ScheduleStep } from '../../../../src/lib/types';
 
 const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
+
+// Extend ScheduleStep locally to allow an optional description field
+type ExtendedScheduleStep = ScheduleStep & {
+  description?: string | null;
+};
+
+type UpcomingItem =
+  | { type: 'rest'; duration: number }
+  | { type: 'step'; step: ExtendedScheduleStep; index: number };
 
 function formatTime(seconds: number) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -43,11 +58,6 @@ export default function PlayScheduleScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useUser();
-  const staticTextColor = {
-    lightColor: palette.textPrimary,
-    darkColor: palette.textPrimary,
-  };
-
   const userId = user?.uid ?? '';
   const path =
     userId && id
@@ -64,21 +74,31 @@ export default function PlayScheduleScreen() {
   const [currentRepeatIndex, setCurrentRepeatIndex] = useState(1);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [repeatConfig, setRepeatConfig] = useState<Record<string, number>>({});
-  const [repeatModalVisible, setRepeatModalVisible] = useState(false);
-  const [pendingRepeat, setPendingRepeat] = useState(1);
   const [restContext, setRestContext] = useState<
     'betweenRepeats' | 'betweenSteps' | null
   >(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [fullscreenMedia, setFullscreenMedia] = useState<
+    { type: 'image' | 'video'; url: string } | null
+  >(null);
 
   const hasInitializedRef = useRef(false);
   const audioRef = useRef<Audio.Sound | null>(null);
   const videoRef = useRef<React.ElementRef<typeof ExpoVideo> | null>(null);
 
-  const steps = useMemo(() => schedule?.steps ?? [], [schedule]);
-  const currentStep: ScheduleStep | undefined = steps[currentStepIndex];
+  const steps = useMemo<ExtendedScheduleStep[]>(
+    () => ((schedule?.steps as ExtendedScheduleStep[]) ?? []),
+    [schedule],
+  );
+
+  const currentStep: ExtendedScheduleStep | undefined =
+    steps[currentStepIndex];
   const plannedRepeats = currentStep ? repeatConfig[currentStep.id] ?? 1 : 1;
+
+  useEffect(() => {
+    setFullscreenMedia(null);
+  }, [currentStep?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -144,7 +164,7 @@ export default function PlayScheduleScreen() {
 
     setRepeatConfig(() => {
       const defaults: Record<string, number> = {};
-      steps.forEach((step: ScheduleStep) => {
+      steps.forEach((step: ExtendedScheduleStep) => {
         defaults[step.id] = 1;
       });
       return defaults;
@@ -225,16 +245,16 @@ export default function PlayScheduleScreen() {
       setRestContext(null);
       advanceToNextStep();
     }
-}, [
-  advanceToNextStep,
-  currentRepeatIndex,
-  currentStep,
-  restContext,
-  phase,
-  repeatConfig,
-  restDurationSetting,
-  steps.length,
-]);
+  }, [
+    advanceToNextStep,
+    currentRepeatIndex,
+    currentStep,
+    restContext,
+    phase,
+    repeatConfig,
+    restDurationSetting,
+    steps.length,
+  ]);
 
   useEffect(() => {
     if (
@@ -318,9 +338,7 @@ export default function PlayScheduleScreen() {
     const sound = audioRef.current;
     if (!sound) return;
 
-    sound
-      .setIsMutedAsync(isAudioMuted)
-      .catch(() => {});
+    sound.setIsMutedAsync(isAudioMuted).catch(() => {});
   }, [isAudioMuted]);
 
   useEffect(() => {
@@ -339,13 +357,17 @@ export default function PlayScheduleScreen() {
     const player = videoRef.current;
     if (!player || currentStep?.media?.type !== 'video') return;
 
-    if (phase === 'step' && !isPaused) {
+    if (
+      phase === 'step' &&
+      !isPaused &&
+      !(fullscreenMedia && fullscreenMedia.type === 'video')
+    ) {
       player.playAsync().catch(() => {});
       return;
     }
 
     player.pauseAsync().catch(() => {});
-  }, [currentStep, isPaused, phase]);
+  }, [currentStep, fullscreenMedia, isPaused, phase]);
 
   useEffect(() => {
     const player = videoRef.current;
@@ -354,29 +376,18 @@ export default function PlayScheduleScreen() {
     player.setIsMutedAsync(isAudioMuted).catch(() => {});
   }, [currentStep, isAudioMuted]);
 
-  const openRepeatModal = () => {
-    if (!currentStep) return;
-    const currentValue = repeatConfig[currentStep.id] ?? 1;
-    setPendingRepeat(currentValue);
-    setRepeatModalVisible(true);
-  };
+  const handleMediaPress = useCallback(() => {
+    if (!currentStep?.media) return;
+    if (currentStep.media.type === 'audio') return;
+    setFullscreenMedia({
+      type: currentStep.media.type,
+      url: currentStep.media.url,
+    });
+  }, [currentStep?.media]);
 
-  const closeRepeatModal = () => {
-    setRepeatModalVisible(false);
-  };
-
-  const confirmRepeat = () => {
-    if (!currentStep) return;
-    setRepeatConfig((prev) => ({
-      ...prev,
-      [currentStep.id]: pendingRepeat,
-    }));
-    setRepeatModalVisible(false);
-    setCurrentRepeatIndex(1);
-    if (phase === 'step') {
-      setRemainingSeconds(Math.max(currentStep.duration ?? 0, 0));
-    }
-  };
+  const closeFullscreenMedia = useCallback(() => {
+    setFullscreenMedia(null);
+  }, []);
 
   const renderMedia = useCallback(() => {
     if (!currentStep?.media) {
@@ -392,27 +403,51 @@ export default function PlayScheduleScreen() {
     if (currentStep.media.type === 'image') {
       videoRef.current = null;
       return (
-        <Image
-          source={{ uri: currentStep.media.url }}
-          style={styles.mediaImage}
-          resizeMode="cover"
-        />
+        <Pressable
+          onPress={handleMediaPress}
+          style={({ pressed }) => [
+            styles.mediaPressable,
+            pressed && styles.mediaPressablePressed,
+          ]}
+        >
+          <Image
+            source={{ uri: currentStep.media.url }}
+            style={styles.mediaImage}
+            resizeMode="cover"
+          />
+          <View style={styles.mediaHint}>
+            <Ionicons name="expand" size={16} color={palette.surface} />
+            <Text style={styles.mediaHintText}>Tap to enlarge</Text>
+          </View>
+        </Pressable>
       );
     }
 
     if (currentStep.media.type === 'video') {
       return (
-        <ExpoVideo
-          ref={(ref) => {
-            videoRef.current = ref;
-          }}
-          source={{ uri: currentStep.media.url }}
-          style={styles.mediaVideo}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay={!isPaused && phase === 'step'}
-          isLooping
-          useNativeControls
-        />
+        <Pressable
+          onPress={handleMediaPress}
+          style={({ pressed }) => [
+            styles.mediaPressable,
+            pressed && styles.mediaPressablePressed,
+          ]}
+        >
+          <ExpoVideo
+            ref={(ref) => {
+              videoRef.current = ref;
+            }}
+            source={{ uri: currentStep.media.url }}
+            style={styles.mediaVideo}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={!isPaused && phase === 'step' && !fullscreenMedia}
+            isLooping
+            useNativeControls={false}
+          />
+          <View style={styles.mediaHint}>
+            <Ionicons name="expand" size={16} color={palette.surface} />
+            <Text style={styles.mediaHintText}>Tap to enlarge</Text>
+          </View>
+        </Pressable>
       );
     }
 
@@ -432,7 +467,7 @@ export default function PlayScheduleScreen() {
         ) : null}
       </View>
     );
-  }, [currentStep, isAudioMuted, isPaused, phase]);
+  }, [currentStep, fullscreenMedia, handleMediaPress, isAudioMuted, isPaused, phase]);
 
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
@@ -454,36 +489,97 @@ export default function PlayScheduleScreen() {
     handlePhaseCompletion();
   }, [handlePhaseCompletion, phase]);
 
-  const extendRest = useCallback(() => {
-    setRemainingSeconds((prev) => (prev === null ? 15 : prev + 15));
-  }, []);
-
-  const upcomingSteps = useMemo(
-    () => steps.slice(currentStepIndex + 1, currentStepIndex + 3),
-    [currentStepIndex, steps],
+  const adjustRest = useCallback(
+    (delta: number) => {
+      setRemainingSeconds((prev) => {
+        const base = prev ?? restDurationSetting;
+        return Math.max(base + delta, 0);
+      });
+    },
+    [restDurationSetting],
   );
+
+  const upcomingItems = useMemo<UpcomingItem[]>(() => {
+    const items: UpcomingItem[] = [];
+    const hasMoreSteps = currentStepIndex < steps.length - 1;
+
+    if (phase === 'step' && restDurationSetting > 0 && hasMoreSteps) {
+      items.push({ type: 'rest', duration: restDurationSetting });
+    }
+
+    for (
+      let index = currentStepIndex + 1;
+      index < steps.length && items.length < 2;
+      index += 1
+    ) {
+      items.push({ type: 'step', step: steps[index], index });
+    }
+
+    return items;
+  }, [currentStepIndex, phase, restDurationSetting, steps]);
 
   const canMuteMedia = useMemo(() => {
     const mediaType = currentStep?.media?.type;
     return mediaType === 'audio' || mediaType === 'video';
   }, [currentStep]);
 
+  const incrementRepeat = useCallback(() => {
+    if (!currentStep) return;
+    setRepeatConfig((prev) => {
+      const currentValue = prev[currentStep.id] ?? 1;
+      return {
+        ...prev,
+        [currentStep.id]: currentValue + 1,
+      };
+    });
+  }, [currentStep]);
+
+  const resetRepeat = useCallback(() => {
+    if (!currentStep) return;
+    setRepeatConfig((prev) => {
+      if ((prev[currentStep.id] ?? 1) === 1) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [currentStep.id]: 1,
+      };
+    });
+  }, [currentStep]);
+
   const isRestPhase = phase === 'rest';
   const timerValue = Math.max(
     0,
-    remainingSeconds ?? (isRestPhase ? restDurationSetting : currentStep?.duration ?? 0),
+    remainingSeconds ??
+      (isRestPhase ? restDurationSetting : currentStep?.duration ?? 0),
   );
   const timerLabel = formatTime(timerValue);
-  const upcomingStep = upcomingSteps[0];
+  const repeatBadgeValue = Math.max(0, plannedRepeats - 1);
+  const repeatBadgeLabel =
+    repeatBadgeValue === 1
+      ? '1 more time'
+      : `${repeatBadgeValue} more times`;
   const skipHandler = isRestPhase ? skipRestPeriod : skipCurrentStep;
-  const handleJumpToStep = useCallback(() => {
-    if (phase === 'rest') {
-      skipRestPeriod();
-      return;
-    }
-
-    advanceToNextStep();
-  }, [advanceToNextStep, phase, skipRestPeriod]);
+  const jumpToStep = useCallback(
+    (targetIndex: number) => {
+      const targetStep = steps[targetIndex];
+      if (!targetStep) return;
+      setIsPaused(false);
+      setPhase('step');
+      setRestContext(null);
+      setCurrentStepIndex(targetIndex);
+      setCurrentRepeatIndex(1);
+      setRemainingSeconds(Math.max(targetStep.duration ?? 0, 0));
+    },
+    [steps],
+  );
+  const stepLabel = isRestPhase
+    ? restContext === 'betweenRepeats'
+      ? `Rest before repeat ${currentRepeatIndex + 1}`
+      : 'Rest'
+    : `Step ${currentStepIndex + 1}: ${
+        currentStep?.name?.trim() || 'Workout Step'
+      }`;
 
   if (isLoading) {
     return (
@@ -530,7 +626,11 @@ export default function PlayScheduleScreen() {
             </Pressable>
           </View>
           <View style={[styles.centered, styles.completionCard]}>
-            <Ionicons name="checkmark-circle" size={72} color={palette.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={72}
+              color={palette.success}
+            />
             <Text style={styles.completionTitle}>All done!</Text>
             <Text style={styles.completionMessage}>
               Great job completing your schedule.
@@ -554,224 +654,261 @@ export default function PlayScheduleScreen() {
       style={styles.screen}
       contentStyle={styles.content}
     >
-      <View style={styles.playCard}>
-        <View style={styles.cardHeader}>
-          <StyledText variant="caption" {...staticTextColor}>
-            Name: {schedule.title}
-          </StyledText>
-          <StyledText variant="label" weight="bold" {...staticTextColor}>
-            Sprint Number: {currentStepIndex + 1} of {steps.length}
-          </StyledText>
-        </View>
+      <View style={styles.playSurface}>
+        {isRestPhase ? (
+          <View style={styles.restScreen}>
+            <Text style={styles.restTitle}>REST</Text>
+            <Text style={styles.restTimer}>{timerLabel}</Text>
+            <View style={styles.restAdjustRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.restAdjustButton,
+                  pressed && styles.restAdjustButtonActive,
+                ]}
+                onPress={() => adjustRest(-10)}
+                accessibilityLabel="Subtract ten seconds from rest"
+              >
+                {({ pressed }) => (
+                  <Text
+                    style={[
+                      styles.restAdjustText,
+                      pressed && styles.restAdjustTextActive,
+                    ]}
+                  >
+                    -10s
+                  </Text>
+                )}
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.restAdjustButton,
+                  pressed && styles.restAdjustButtonActive,
+                ]}
+                onPress={() => adjustRest(10)}
+                accessibilityLabel="Add ten seconds to rest"
+              >
+                {({ pressed }) => (
+                  <Text
+                    style={[
+                      styles.restAdjustText,
+                      pressed && styles.restAdjustTextActive,
+                    ]}
+                  >
+                    +10s
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.headerBlock}>
+              <Text style={styles.scheduleLabel}>Name: {schedule.title}</Text>
+              <View style={styles.stepRow}>
+                <Text style={styles.stepText}>{stepLabel}</Text>
+                <View style={styles.timerBadge}>
+                  <Text style={styles.timerValue}>{timerLabel}</Text>
+                </View>
+              </View>
+            </View>
 
-        <View style={styles.previewFrame}>
-          {renderMedia()}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              isRestPhase ? 'Skip rest timer' : 'Skip current step'
-            }
-            onPress={skipHandler}
-            style={({ pressed }) => [
-              styles.skipButton,
-              pressed && styles.skipButtonActive,
-            ]}
-          >
-            <Ionicons name="play-skip-forward" size={24} color={palette.surface} />
-          </Pressable>
-        </View>
+            <View style={styles.mediaFrame}>{renderMedia()}</View>
 
-        <View style={styles.stageCard}>
-          {phase === 'rest' ? (
-            <RestStage
-              scheduleTitle={schedule.title}
-              remainingSeconds={remainingSeconds ?? 0}
-              onExtend={extendRest}
-              restContext={restContext}
-              nextStep={
-                restContext === 'betweenRepeats'
-                  ? currentStep
-                  : steps[currentStepIndex + 1]
-              }
-              currentRepeatIndex={currentRepeatIndex}
-              plannedRepeats={plannedRepeats}
-              onTogglePause={togglePause}
-              isPaused={isPaused}
-              onSkipRest={skipRestPeriod}
-            />
+            <View style={styles.controlsRow}>
+              <View style={styles.controlsGroup}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    repeatBadgeValue > 0
+                      ? `Current step will repeat ${repeatBadgeLabel}. Tap to add another repeat, long press to clear repeats.`
+                      : 'Tap to repeat this step. Long press to clear repeats.'
+                  }
+                  onPress={incrementRepeat}
+                  onLongPress={resetRepeat}
+                  delayLongPress={400}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    repeatBadgeValue > 0 && styles.iconButtonActive,
+                    pressed && styles.iconButtonPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="repeat"
+                    size={20}
+                    color={
+                      repeatBadgeValue > 0
+                        ? PRIMARY_BUTTON_TEXT_COLOR
+                        : palette.textPrimary
+                    }
+                  />
+                  {repeatBadgeValue > 0 ? (
+                    <View style={styles.repeatBadge}>
+                      <Text style={styles.repeatBadgeText}>
+                        {repeatBadgeValue}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isPaused ? 'Resume timer' : 'Pause timer'}
+                  onPress={togglePause}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    isPaused && styles.iconButtonActive,
+                    pressed && styles.iconButtonPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={isPaused ? 'play' : 'pause'}
+                    size={20}
+                    color={
+                      isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
+                    }
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isRestPhase ? 'Skip rest timer' : 'Skip current step'
+                  }
+                  onPress={skipHandler}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed && styles.iconButtonPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="play-skip-forward"
+                    size={20}
+                    color={palette.textPrimary}
+                  />
+                </Pressable>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isAudioMuted ? 'Unmute media' : 'Mute media'}
+                disabled={!canMuteMedia}
+                onPress={toggleMute}
+                style={({ pressed }) => [
+                  styles.mutePill,
+                  isAudioMuted && styles.mutePillActive,
+                  !canMuteMedia && styles.mutePillDisabled,
+                  pressed && styles.mutePillPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.mutePillText,
+                    isAudioMuted && styles.mutePillTextActive,
+                    !canMuteMedia && styles.mutePillTextDisabled,
+                  ]}
+                >
+                  {isAudioMuted ? 'Unmute' : 'Mute'}
+                </Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+
+        <View style={styles.upcomingSection}>
+          <Text style={styles.upcomingTitle}>Upcoming steps</Text>
+          {upcomingItems.length === 0 ? (
+            <Text style={styles.upcomingEmpty}>You're on the final step.</Text>
           ) : (
-            <ActiveStage
-              scheduleTitle={schedule.title}
-              currentStep={currentStep}
-              currentStepIndex={currentStepIndex}
-              totalSteps={steps.length}
-              remainingSeconds={remainingSeconds ?? 0}
-              currentRepeatIndex={currentRepeatIndex}
-              plannedRepeats={plannedRepeats}
-              upcomingSteps={upcomingSteps}
-              onTogglePause={togglePause}
-              onSkipStep={skipCurrentStep}
-              onToggleMute={toggleMute}
-              isPaused={isPaused}
-              isAudioMuted={isAudioMuted}
-              canMute={canMuteMedia}
-              onOpenRepeat={openRepeatModal}
-              renderMedia={renderMedia}
-            />
+            upcomingItems.map((item, index) => {
+              const label =
+                item.type === 'rest'
+                  ? 'Rest'
+                  : item.step.name?.trim() ||
+                    `Step ${item.index + 1}`;
+              const meta =
+                item.type === 'rest'
+                  ? `${item.duration}s`
+                  : formatTime(item.step.duration ?? 0);
+
+              return (
+                <View key={`${item.type}-${index}`} style={styles.upcomingItem}>
+                  <View style={styles.upcomingInfo}>
+                    <Text style={styles.upcomingIndex}>{index + 1}.</Text>
+                    <View style={styles.upcomingTextBlock}>
+                      <Text style={styles.upcomingLabel}>{label}</Text>
+                      <Text style={styles.upcomingMeta}>{meta}</Text>
+                    </View>
+                  </View>
+                  {item.type === 'step' ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Jump to ${label}`}
+                      onPress={() => jumpToStep(item.index)}
+                      style={({ pressed }) => [
+                        styles.jumpButton,
+                        pressed && styles.jumpButtonPressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="play-skip-forward"
+                        size={16}
+                        color={palette.textPrimary}
+                      />
+                    </Pressable>
+                  ) : (
+                    <View style={styles.jumpButtonPlaceholder}>
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color={palette.textMuted}
+                      />
+                    </View>
+                  )}
+                </View>
+              );
+            })
           )}
         </View>
       </View>
 
-      <Modal
-        visible={repeatModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeRepeatModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Repeat this step</Text>
-            <Text style={styles.modalSubtitle}>
-              Choose how many times to loop "
-              {currentStep?.name?.trim() || 'Workout Step'}".
-            </Text>
-            <View style={styles.modalControls}>
-              <Pressable
-                style={[styles.modalControlButton, styles.modalControlSecondary]}
-                onPress={() =>
-                  setPendingRepeat((prev) => Math.max(1, prev - 1))
-                }
-                accessibilityLabel="Decrease repeats"
-              >
-                <Ionicons name="remove" size={22} color={palette.textPrimary} />
-              </Pressable>
-              <Text style={styles.modalCount}>{pendingRepeat}</Text>
-              <Pressable
-                style={[styles.modalControlButton, styles.modalControlPrimary]}
-                onPress={() => setPendingRepeat((prev) => prev + 1)}
-                accessibilityLabel="Increase repeats"
-              >
-                <Ionicons
-                  name="add"
-                  size={22}
-                  color={PRIMARY_BUTTON_TEXT_COLOR}
+      {fullscreenMedia ? (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={closeFullscreenMedia}
+        >
+          <Pressable
+            style={styles.fullscreenOverlay}
+            onPress={closeFullscreenMedia}
+          >
+            <Pressable
+              onPress={(event: GestureResponderEvent) => {
+                event.stopPropagation();
+              }}
+              style={styles.fullscreenMediaContainer}
+            >
+              {fullscreenMedia.type === 'image' ? (
+                <Image
+                  source={{ uri: fullscreenMedia.url }}
+                  style={styles.fullscreenMedia}
+                  resizeMode="contain"
                 />
-              </Pressable>
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancel} onPress={closeRepeatModal}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalConfirm} onPress={confirmRepeat}>
-                <Text style={styles.modalConfirmText}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={isPaused ? 'Resume timer' : 'Pause timer'}
-            onPress={togglePause}
-            style={({ pressed }) => [
-              styles.circleButton,
-              isPaused && styles.circleButtonPaused,
-              pressed && styles.circleButtonPressed,
-            ]}
-          >
-            <Ionicons
-              name={isPaused ? 'play' : 'pause'}
-              size={20}
-              color={
-                isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
-              }
-            />
+              ) : (
+                <ExpoVideo
+                  source={{ uri: fullscreenMedia.url }}
+                  style={styles.fullscreenMedia}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={!isPaused && phase === 'step'}
+                  isLooping
+                  useNativeControls
+                />
+              )}
+            </Pressable>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Mute background audio"
-            disabled={!canMuteMedia}
-            onPress={toggleMute}
-            style={({ pressed }) => [
-              styles.muteButton,
-              !canMuteMedia && styles.muteButtonDisabled,
-              pressed && styles.muteButtonPressed,
-              isAudioMuted && styles.muteButtonActive,
-            ]}
-          >
-            <Ionicons
-              name={isAudioMuted ? 'volume-mute' : 'volume-high'}
-              size={20}
-              color={
-                isAudioMuted
-                  ? PRIMARY_BUTTON_TEXT_COLOR
-                  : canMute
-                    ? palette.textPrimary
-                    : palette.textMuted
-              }
-            />
-          </Pressable>
-        </View>
-      </View>
+        </Modal>
+      ) : null}
 
-      <View style={styles.restMainDisplay}>
-        <Text style={styles.restTitle}>Rest</Text>
-        <Text style={styles.restTimerLarge}>{Math.max(remainingSeconds, 0)}</Text>
-        <Text style={styles.restTimerCaption}>seconds remaining</Text>
-        <Text style={styles.restStageMessage}>
-          {isBetweenRepeats
-            ? `Next round ${nextRepeatIndex} of ${plannedRepeats}`
-            : nextStep
-              ? `Up next: ${nextStep.name?.trim() || 'Next step'}`
-              : 'Great work! This is your final rest interval.'}
-        </Text>
-        <Pressable
-          style={styles.extendButton}
-          onPress={onExtend}
-          accessibilityLabel="Add fifteen seconds"
-        >
-          <Text style={styles.extendButtonText}>+ 15 sec</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.restFooterRow}>
-        <Pressable
-          style={styles.restControlButton}
-          onPress={onTogglePause}
-          accessibilityLabel={
-            isPaused ? 'Resume rest timer' : 'Pause rest timer'
-          }
-        >
-          <Ionicons
-            name={isPaused ? 'play' : 'pause'}
-            size={18}
-            color={
-              isPaused ? PRIMARY_BUTTON_TEXT_COLOR : palette.textPrimary
-            }
-          />
-          <Text style={styles.restControlText}>{isPaused ? 'Resume' : 'Pause'}</Text>
-        </Pressable>
-        <View style={styles.restNextBlock}>
-          <Text style={styles.restNextLabel}>Next</Text>
-          <Text style={styles.restNextValue}>
-            {isBetweenRepeats
-              ? `Round ${nextRepeatIndex}`
-              : nextStep?.name?.trim() || 'Final step'}
-          </Text>
-          <Text style={styles.restNextMeta}>
-            {isBetweenRepeats
-              ? `of ${plannedRepeats}`
-              : nextStep
-                ? formatTime(nextStep.duration ?? 0)
-                : 'Schedule complete'}
-          </Text>
-        </View>
-      </View>
     </Screen>
   );
 }
-
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -813,60 +950,147 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   screen: {
-    backgroundColor: palette.surface,
+    flex: 1,
+    backgroundColor: palette.background,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xxl,
-    gap: spacing.xl,
   },
-  playCard: {
+  playSurface: {
+    flex: 1,
     width: '100%',
-    maxWidth: 380,
-    backgroundColor: palette.surfaceElevated,
+    maxWidth: 420,
+    alignSelf: 'center',
+    backgroundColor: palette.surface,
     borderRadius: 32,
     padding: spacing.xl,
+    paddingBottom: spacing.xxl,
     borderWidth: 1,
     borderColor: palette.border,
     shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 4,
-    alignItems: 'stretch',
-    position: 'relative',
+    gap: spacing.lg,
+    minHeight: 780,
   },
-  cardHeader: {
+  headerBlock: {
     gap: spacing.xs,
-    marginBottom: spacing.md,
   },
-  previewFrame: {
-    height: 380,
+  scheduleLabel: {
+    fontSize: 16,
+    color: palette.textPrimary,
+    fontWeight: '600',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  timerBadge: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
+    borderRadius: 14,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  timerValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  mediaFrame: {
+    height: 360,
     borderRadius: 28,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
     backgroundColor: palette.surfaceMuted,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  mediaPressable: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaPressablePressed: {
+    opacity: 0.9,
+  },
+  restScreen: {
+    height: 360,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
+    backgroundColor: palette.surfaceMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  restTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  restTimer: {
+    fontSize: 54,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  restAdjustRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  restAdjustButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    position: 'relative',
-  },
-  mediaContainer: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: palette.surfaceMuted,
-    justifyContent: 'center',
+    backgroundColor: palette.surface,
+    minWidth: 120,
     alignItems: 'center',
   },
-  mediaFallback: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: palette.primaryMuted,
+  restAdjustButtonActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  restAdjustText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: palette.textPrimary,
+  },
+  restAdjustTextActive: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+  },
+  mediaPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  mediaPlaceholderText: {
+    fontSize: 14,
+    color: palette.textMuted,
+    textAlign: 'center',
   },
   mediaImage: {
     width: '100%',
@@ -876,6 +1100,23 @@ const styles = StyleSheet.create({
   mediaVideo: {
     width: '100%',
     height: '100%',
+  },
+  mediaHint: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs / 2,
+  },
+  mediaHintText: {
+    color: palette.surface,
+    fontSize: 11,
+    fontWeight: '600',
   },
   mediaAudio: {
     width: '100%',
@@ -894,159 +1135,166 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: palette.textMuted,
   },
-  mediaPlaceholder: {
+  fullscreenOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(7, 10, 20, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
+    padding: spacing.lg,
   },
-  mediaPlaceholderText: {
-    fontSize: 14,
-    color: palette.textMuted,
-  },
-  timerBadge: {
-    position: 'absolute',
-    top: -26,
-    right: 18,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: palette.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: palette.border,
-    shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  skipButton: {
-    position: 'absolute',
-    right: spacing.lg,
-    top: '50%',
-    transform: [{ translateY: -28 }],
-    width: 56,
-    height: 56,
+  fullscreenMediaContainer: {
+    width: '90%',
+    maxWidth: 920,
+    aspectRatio: 16 / 9,
     borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  skipButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  fullscreenMedia: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'transparent',
   },
-  controlRow: {
+  controlsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    justifyContent: 'space-between',
   },
-  circleButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 2,
-    borderColor: palette.surface,
+  controlsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
     backgroundColor: palette.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  circleButtonPaused: {
+  iconButtonActive: {
     backgroundColor: palette.primary,
     borderColor: palette.primary,
   },
-  circleButtonPressed: {
+  iconButtonPressed: {
     opacity: 0.8,
   },
-  muteButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#c92a2a',
+  repeatBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: palette.primary,
+    borderWidth: 1,
+    borderColor: palette.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  repeatBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+  },
+  mutePill: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
+    backgroundColor: palette.surface,
+  },
+  mutePillActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  mutePillDisabled: {
+    opacity: 0.4,
+  },
+  mutePillPressed: {
+    opacity: 0.8,
+  },
+  mutePillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.textPrimary,
+  },
+  mutePillTextActive: {
+    color: PRIMARY_BUTTON_TEXT_COLOR,
+  },
+  mutePillTextDisabled: {
+    color: palette.textSecondary,
+  },
+  upcomingSection: {
+    gap: spacing.sm,
+  },
+  upcomingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  upcomingEmpty: {
+    fontSize: 13,
+    color: palette.textSecondary,
+  },
+  upcomingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+  },
+  upcomingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  upcomingIndex: {
+    fontSize: 14,
+    color: palette.textSecondary,
+  },
+  upcomingTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  upcomingLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.textPrimary,
+  },
+  upcomingMeta: {
+    fontSize: 12,
+    color: palette.textSecondary,
+  },
+  jumpButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.textPrimary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  muteButtonPressed: {
-    opacity: 0.8,
+  jumpButtonPressed: {
+    opacity: 0.7,
   },
-  muteButtonActive: {
-    backgroundColor: '#a52a2a',
-  },
-  muteButtonDisabled: {
-    opacity: 0.4,
-  },
-  extendButtonText: {
-    color: PRIMARY_BUTTON_TEXT_COLOR,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  restFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  restControlText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: PRIMARY_BUTTON_TEXT_COLOR,
-  },
-  restNextBlock: {
-    flex: 1,
-    backgroundColor: palette.surface,
+  jumpButtonPlaceholder: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    padding: 14,
-    shadowColor: palette.shadowStrong,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-    gap: 4,
-  },
-  footerActions: {
-    gap: spacing.xs,
-    alignItems: 'flex-end',
-  },
-  footerButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  footerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     borderWidth: 1,
     borderColor: palette.border,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: palette.surface,
   },
-  footerButtonPressed: {
-    opacity: 0.7,
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginTop: 16,
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  modalConfirmText: { color: PRIMARY_BUTTON_TEXT_COLOR, fontWeight: '700' },
   primaryButton: {
     marginTop: 20,
     backgroundColor: palette.primary,
@@ -1058,13 +1306,6 @@ const styles = StyleSheet.create({
     color: PRIMARY_BUTTON_TEXT_COLOR,
     fontWeight: '700',
     fontSize: 15,
-  },
-  errorTitle: { fontSize: 22, fontWeight: '700', color: palette.textPrimary, marginTop: 16 },
-  errorMessage: {
-    fontSize: 14,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginTop: 8,
   },
   completionCard: {
     backgroundColor: palette.surface,
@@ -1086,5 +1327,17 @@ const styles = StyleSheet.create({
   },
   completionButton: {
     marginTop: 12,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginTop: 16,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
   },
 });

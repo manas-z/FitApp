@@ -1,11 +1,15 @@
 // app/(auth)/signup.tsx
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
+import { Screen } from '@/components/Screen';
+import { StyledText } from '@/components/StyledText';
+import { Button } from '@/components/ui/Button';
+import { TextField } from '@/components/ui/TextField';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import React from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { StyleSheet, View } from 'react-native';
+import { getReadableTextColor, palette, radii, spacing } from '../../constants/theme';
 import { useFirebase } from '../../src/firebase';
-import { palette, radii, spacing, getReadableTextColor } from '../../constants/theme';
 
 type FormValues = {
   email: string;
@@ -96,16 +100,11 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.lg,
     padding: spacing.xl,
-    borderRadius: 28,
+    borderRadius: radii.md,
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
     marginBottom: spacing.md,
-    backgroundColor: palette.surface,
-    color: palette.textPrimary,
-    fontSize: 16,
   },
   button: {
     marginTop: spacing.sm,

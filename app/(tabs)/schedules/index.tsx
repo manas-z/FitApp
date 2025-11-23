@@ -1,17 +1,17 @@
 // app/(tabs)/schedules/index.tsx
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
-  ActivityIndicator,
+  Text,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useUser, useCollection } from '../../../src/firebase';
+import { getReadableTextColor, palette, radii, spacing } from '../../../constants/theme';
+import { useCollection, useUser } from '../../../src/firebase';
 import type { Schedule } from '../../../src/lib/types';
-import { palette, radii, spacing, getReadableTextColor } from '../../../constants/theme';
 
 const PRIMARY_BUTTON_TEXT_COLOR = getReadableTextColor(palette.primary);
 
@@ -56,9 +56,11 @@ export default function SchedulesListScreen() {
       )}
 
       {!loading && !error && schedules.length === 0 && (
-        <Text style={styles.emptyText}>
-          No schedules yet. Create your first one.
-        </Text>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            No schedules yet. Create your first one.
+          </Text>
+        </View>
       )}
 
       {!loading && !error && schedules.length > 0 && (
@@ -135,9 +137,13 @@ const styles = StyleSheet.create({
     color: palette.danger,
     marginTop: spacing.md,
   },
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    gap: spacing.lg,
+  },
   emptyText: {
     color: palette.textMuted,
-    marginTop: spacing.md,
     fontSize: 15,
   },
   card: {

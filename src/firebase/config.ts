@@ -2,10 +2,10 @@
 import { FirebaseOptions } from 'firebase/app';
 
 export const firebaseConfig: FirebaseOptions = {
-  apiKey: 'AIzaSyD8aKMMOxMsm_k5MMmXrdNC3-uvjGxycII',
-  authDomain: 'fitnessapp-32532.firebaseapp.com',
-  projectId: 'fitnessapp-32532',
-  storageBucket: 'fitnessapp-32532.firebasestorage.app',
-  messagingSenderId: '1015036849949',
-  appId: '1:1015036849949:web:cb3cfcba653b8f89e33bf4',
+  apiKey: "AIzaSyCXVeZQSQos2_wbRHfKFxKI2cL4HnPSvxg",
+  authDomain: "cyclefit-new.firebaseapp.com",
+  projectId: "cyclefit-new",
+  storageBucket: "cyclefit-new.firebasestorage.app",
+  messagingSenderId: "443384351748",
+  appId: "1:443384351748:web:7219c7a1591e92a8ddf951"
 };

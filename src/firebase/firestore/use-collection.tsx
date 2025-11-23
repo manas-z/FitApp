@@ -1,12 +1,12 @@
 // src/firebase/firestore/use-collection.tsx
-import { useEffect, useState } from 'react';
 import {
   collection,
-  onSnapshot,
   query as makeQuery,
-  type QueryConstraint,
+  onSnapshot,
   type DocumentData,
+  type QueryConstraint,
 } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 import { useFirebase } from '../provider';
 
 type CollectionState<T> = {
@@ -50,7 +50,7 @@ export function useCollection<T = DocumentData>(
         setState({ data: items, isLoading: false, error: null });
       },
       (err) => {
-        console.warn('useCollection snapshot error', err);
+        console.error(`[useCollection] Error in snapshot for ${path}:`, err);
         setState((prev) => ({ ...prev, isLoading: false, error: err }));
       },
     );

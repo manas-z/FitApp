@@ -1,13 +1,14 @@
 // src/firebase/index.ts
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import * as firebaseAuth from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
+import * as firebaseAuth from 'firebase/auth';
 import {
-  initializeFirestore,
   Firestore,
+  getFirestore,
+  setLogLevel
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { firebaseConfig } from './config';
 
@@ -16,6 +17,9 @@ let authInstance: Auth | null = null;
 let firestoreInstance: Firestore | null = null;
 
 export function initializeFirebase() {
+  // Enable verbose logging for Firestore to debug connection issues
+  setLogLevel('debug');
+
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
   // ---------- Auth ----------
@@ -34,15 +38,7 @@ export function initializeFirebase() {
 
   // ---------- Firestore ----------
   if (!firestoreInstance) {
-    if (Platform.OS === 'web') {
-      // Web: default transport
-      firestoreInstance = initializeFirestore(app, {});
-    } else {
-      // React Native: force long polling; no useFetchStreams (not in this SDK)
-      firestoreInstance = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
-      });
-    }
+    firestoreInstance = getFirestore(app);
   }
 
   return {
@@ -53,6 +49,7 @@ export function initializeFirebase() {
 }
 
 // Re-export hooks and provider
-export * from './provider';
-export * from './firestore/use-doc';
 export * from './firestore/use-collection';
+export * from './firestore/use-doc';
+export * from './provider';
+
